@@ -1,5 +1,5 @@
 use phylactery::{
-    lock::{Lich, Soul, ritual},
+    raw::{Lich, Soul, redeem, ritual},
     shroud,
 };
 
@@ -30,7 +30,10 @@ fn shroud_macro_compiles() {
         ritual(value)
     }
 
-    simple(&());
-    generic(&());
-    generics(&());
+    let (lich, soul) = simple(&());
+    unsafe { redeem(lich, soul) };
+    let (lich, soul) = generic(&());
+    unsafe { redeem(lich, soul) };
+    let (lich, soul) = generics(&());
+    unsafe { redeem(lich, soul) };
 }

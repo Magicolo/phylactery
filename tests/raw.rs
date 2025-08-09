@@ -1,5 +1,3 @@
-#![cfg(feature = "raw")]
-
 use phylactery::raw::{Lich, redeem, ritual};
 use std::{sync::Mutex, thread::spawn};
 

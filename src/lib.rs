@@ -11,7 +11,6 @@ inaccessible from a remaining `Lich`.
 pub mod cell;
 #[cfg(feature = "lock")]
 pub mod lock;
-#[cfg(feature = "raw")]
 pub mod raw;
 pub mod shroud;
 

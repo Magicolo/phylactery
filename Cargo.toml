@@ -16,9 +16,8 @@ rust-version = "1.79.0"
 github = { repository = "Magicolo/phylactery", workflow = "test" }
 
 [features]
-default = ["cell", "lock", "raw"]
+default = ["cell", "lock"]
 cell = []
 lock = []
-raw = []
 
 [dependencies]
