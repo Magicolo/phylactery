@@ -11,14 +11,14 @@ fn redeem_succeeds_with_none() {
 }
 
 #[test]
-fn redeem_fails_with_some() {
+fn redeem_succeeds_with_mixed() {
+    // `Raw` order `Lich<T>/Soul<'a>` can not differentiate between two instances of
+    // the same binding.
     let function = || {};
     let (lich1, soul1) = ritual::<_, dyn Fn()>(&function);
     let (lich2, soul2) = ritual::<_, dyn Fn()>(&function);
-    let (lich1, soul2) = unsafe { redeem(lich1, soul2) }.unwrap();
-    let (lich2, soul1) = unsafe { redeem(lich2, soul1) }.unwrap();
-    assert!(unsafe { redeem(lich1, soul1) }.is_none());
-    assert!(unsafe { redeem(lich2, soul2) }.is_none());
+    assert!(unsafe { redeem(lich1, soul2) }.is_none());
+    assert!(unsafe { redeem(lich2, soul1) }.is_none());
 }
 
 #[test]
@@ -59,6 +59,5 @@ fn can_be_stored_as_static() {
         'a'
     );
     let lich = LICH.lock().unwrap().take().unwrap();
-    dbg!(unsafe { redeem(lich, soul) }.is_some());
-    // assert!(unsafe { redeem(lich, soul) }.is_none());
+    assert!(unsafe { redeem(lich, soul) }.is_none());
 }
