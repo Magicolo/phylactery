@@ -1,4 +1,4 @@
-use crate::{Order, Sever, shroud::Shroud};
+use crate::{Order, sever::Sever, shroud::Shroud};
 use core::ptr;
 use std::sync::{Arc, RwLock, RwLockReadGuard, TryLockError, Weak};
 
@@ -78,4 +78,12 @@ impl<T: ?Sized> Lich<T> {
             None
         }
     }
+}
+
+pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (Lich<S>, Soul<'a>) {
+    crate::ritual(value)
+}
+
+pub fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> Option<(Lich<T>, Soul<'a>)> {
+    unsafe { crate::redeem(lich, soul) }
 }

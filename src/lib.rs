@@ -1,16 +1,25 @@
+/*!
+# Phylactery
+
+This library offers a safe wrapper around lifetime extension shenanigans by splitting a `&'a T` into a
+`Lich<dyn T + 'b>` (`'b` can be any chosen lifetime) and a `Soul<'a>` which tracks the original lifetime. On
+drop of the `Soul` or on calling `Soul::sever`, it is guaranteed that the captured reference is also dropped, thus
+inaccessible from a remaining `Lich`.
+!*/
+
+#[cfg(feature = "cell")]
 pub mod cell;
+#[cfg(feature = "lock")]
 pub mod lock;
+#[cfg(feature = "raw")]
+pub mod raw;
+pub mod sever;
 pub mod shroud;
-pub mod r#unsafe;
 
 /*
 TODO:
 - Myth: The [`Lich<T>`] is a being that forfeited its [`Soul<'a>`] through a ritual in order to become undead.
 - Rust: The [`Lich<T>`] is a `&'a T` that forfeited its lifetime through some unsafe code in order to become `'static`.
-- This library offers a safe wrapper around lifetime extension shenanigans by splitting a `&'a T` into a
-`Lich<dyn T + 'b>` (`'b` can be any chosen lifetime) and a `Soul<'a>` which tracks the original lifetime. On
-drop of the `Soul` or on calling `Soul::sever`, it is guaranteed that the captured reference is also dropped, thus
-inaccessible from a remaining `Lich`.
 
 - 2 scenarios come to mind for usage of the `Lich`:
     - thread local scoped state
@@ -64,22 +73,12 @@ pub trait Order {
     fn sever_weak(_: &Self::Weak<'_>) -> bool;
 }
 
-pub trait Sever {
-    fn sever(&mut self) -> bool;
-}
-
 pub struct Soul<'a, O: Order + ?Sized>(pub(crate) O::Weak<'a>);
 pub struct Lich<T: ?Sized, O: Order + ?Sized>(pub(crate) O::Strong<T>);
 pub struct Guard<'a, T: ?Sized + 'a, O: Order + ?Sized>(pub(crate) O::Refer<'a, T>);
 
 unsafe impl<T: Send + ?Sized, O: Order + ?Sized> Send for Lich<T, O> {}
 unsafe impl<T: Sync + ?Sized, O: Order + ?Sized> Sync for Lich<T, O> {}
-
-impl<T> Sever for Option<T> {
-    fn sever(&mut self) -> bool {
-        self.take().is_some()
-    }
-}
 
 impl<T: ?Sized, O: Order + ?Sized> Lich<T, O> {
     pub fn is_bound(&self) -> bool {
@@ -132,17 +131,22 @@ impl<'a, T: ?Sized, O: Order<Refer<'a, T>: Deref<Target = Option<*const T>>> + ?
     }
 }
 
-pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a, O: Order + ?Sized>(
+impl<'a, T: ?Sized, O: Order<Refer<'a, T>: AsRef<Option<*const T>>> + ?Sized> AsRef<T>
+    for Guard<'a, T, O>
+{
+    fn as_ref(&self) -> &T {
+        unsafe { &**self.0.as_ref().as_ref().unwrap_unchecked() }
+    }
+}
+
+fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a, O: Order + ?Sized>(
     value: &'a T,
 ) -> (Lich<S, O>, Soul<'a, O>) {
     let (strong, weak) = O::bind(value);
     (Lich(strong), Soul(weak))
 }
 
-/// # Safety
-/// The caller must ensure that the provided [`Lich<T>`] and [`Soul<'a>`] have
-/// been created from the same [`ritual`].
-pub unsafe fn redeem<'a, T: ?Sized + 'a, O: Order + ?Sized>(
+unsafe fn redeem<'a, T: ?Sized + 'a, O: Order + ?Sized>(
     lich: Lich<T, O>,
     soul: Soul<'a, O>,
 ) -> Option<(Lich<T, O>, Soul<'a, O>)> {

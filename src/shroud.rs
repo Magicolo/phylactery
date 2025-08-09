@@ -5,18 +5,22 @@ pub trait Shroud<T: ?Sized> {
 #[macro_export]
 macro_rules! shroud {
     ($type: ident) => {
-        shroud!(@TRAIT {
-            type: $type,
-            generics: (),
-            traits: ((Send), (Sync), (Unpin), (Send, Sync), (Send, Unpin), (Sync, Unpin), (Send, Sync, Unpin)),
-        });
+        shroud!(@TRAIT { type: $type, generics: (), traits: () });
+    };
+    ($type: ident +) => {
+        shroud!(@TRAIT { type: $type, generics: (), traits: ((Send), (Sync), (Unpin), (Send, Sync), (Send, Unpin), (Sync, Unpin), (Send, Sync, Unpin)) });
+    };
+    ($type: ident $(+ $trait: ident)+) => {
+        shroud!(@TRAIT { type: $type, generics: (), traits: (($($trait),*)) });
     };
     ($type: ident<$($generic: ident),* $(,)?>) => {
-        shroud!(@TRAIT {
-            type: $type,
-            generics: ($($generic),*),
-            traits: ((Send), (Sync), (Unpin), (Send, Sync), (Send, Unpin), (Sync, Unpin), (Send, Sync, Unpin)),
-        });
+        shroud!(@TRAIT { type: $type, generics: ($($generic),*), traits: () });
+    };
+    ($type: ident<$($generic: ident),* $(,)?> +) => {
+        shroud!(@TRAIT { type: $type, generics: ($($generic),*), traits: ((Send), (Sync), (Unpin), (Send, Sync), (Send, Unpin), (Sync, Unpin), (Send, Sync, Unpin)) });
+    };
+    ($type: ident<$($generic: ident),* $(,)?> $(+ $trait: ident)+) => {
+        shroud!(@TRAIT { type: $type, generics: ($($generic),*), traits: (($($trait),*)) });
     };
     (@TRAIT { type: $type: ident, generics: $generics: tt, traits: () $(,)? }) => {
         shroud!(@IMPLEMENT { type: $type, generics: $generics, traits: () });
@@ -26,6 +30,13 @@ macro_rules! shroud {
         shroud!(@IMPLEMENT { type: $type, generics: $generics, traits: $trait });
     };
     (@IMPLEMENT { type: $type: ident, generics: ($($generic: ident),*), traits: ($($trait: path),*) $(,)? }) => {
+        impl<$($generic,)*> $crate::shroud::Shroud<dyn $type<$($generic),*> $(+ $trait)*> for dyn $type<$($generic),*> $(+ $trait)* {
+            #[inline(always)]
+            fn shroud(from: &(dyn $type<$($generic),*> $(+ $trait)*)) -> *const (dyn $type<$($generic),*> $(+ $trait)*) {
+                from as *const _ as *const _
+            }
+        }
+
         impl<$($generic,)* TConcrete: $type<$($generic),*> $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $type<$($generic),*> $(+ $trait)* {
             #[inline(always)]
             fn shroud(from: &TConcrete) -> *const (dyn $type<$($generic),*> $(+ $trait)*) {
@@ -61,6 +72,13 @@ macro_rules! shroud_fn {
         shroud_fn!(@IMPLEMENT { function: $function, parameters: $parameters, return: $return, traits: $trait });
     };
     (@IMPLEMENT { function: $function: ident, parameters: ($($parameter: ident),*), return: $return: ident, traits: ($($trait: path),*) $(,)? }) => {
+        impl<$($parameter,)* $return> $crate::shroud::Shroud<dyn $function($($parameter),*) -> $return $(+ $trait)*> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
+            #[inline(always)]
+            fn shroud(from: &(dyn $function($($parameter),*) -> $return $(+ $trait)*)) -> *const (dyn $function($($parameter),*) -> $return $(+ $trait)*) {
+                from as *const _ as *const _
+            }
+        }
+
         impl<$($parameter,)* $return, TConcrete: $function($($parameter),*) -> $return $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
             #[inline(always)]
             fn shroud(from: &TConcrete) -> *const (dyn $function($($parameter),*) -> $return $(+ $trait)*) {

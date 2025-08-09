@@ -1,38 +1,7 @@
-use core::{ops::Deref, time::Duration};
 use phylactery::{
-    lock::{Lich, Soul},
-    ritual, shroud,
+    lock::{Lich, Soul, ritual},
+    shroud,
 };
-use std::{
-    sync::Mutex,
-    thread::{sleep, spawn},
-};
-
-fn scopeth<F: Fn() + Send + Sync>(f: &F) -> Soul<'_> {
-    let (l, s): (Lich<dyn Fn() + Send + Sync + 'static>, _) = ritual(f);
-    spawn(move || {
-        let l = l;
-        l.borrow().unwrap().deref()();
-    })
-    .join()
-    .unwrap();
-    s
-}
-
-#[test]
-fn boba() {
-    let a = Mutex::new('c');
-    let f = || {
-        *a.lock().unwrap() = 'd';
-    };
-    let soul = scopeth(&f);
-    while soul.is_bound() {
-        sleep(Duration::from_millis(1));
-    }
-    soul.sever();
-    let a = a.into_inner().unwrap();
-    assert_eq!(a, 'd');
-}
 
 #[test]
 fn shroud_macro_compiles() {

@@ -1,13 +1,13 @@
 use crate::{Order, shroud::Shroud};
 use core::ptr;
 
-pub struct Unsafe;
+pub struct Raw;
 
-pub type Soul<'a> = crate::Soul<'a, Unsafe>;
-pub type Lich<T> = crate::Lich<T, Unsafe>;
-pub type Guard<'a, T> = crate::Guard<'a, T, Unsafe>;
+pub type Soul<'a> = crate::Soul<'a, Raw>;
+pub type Lich<T> = crate::Lich<T, Raw>;
+pub type Guard<'a, T> = crate::Guard<'a, T, Raw>;
 
-impl Order for Unsafe {
+impl Order for Raw {
     type Refer<'a, T: ?Sized + 'a> = &'a T;
     type Strong<T: ?Sized> = *const T;
     type Weak<'a> = &'a ();
@@ -54,4 +54,18 @@ impl<T: ?Sized> Lich<T> {
     pub unsafe fn borrow(&self) -> &T {
         unsafe { &*self.0 }
     }
+}
+
+pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (Lich<S>, Soul<'a>) {
+    crate::ritual(value)
+}
+
+/// # Safety
+/// The caller must ensure that the provided [`Lich<T>`] and [`Soul<'a>`] have
+/// been created from the same [`ritual`].
+pub unsafe fn redeem<'a, T: ?Sized + 'a>(
+    lich: Lich<T>,
+    soul: Soul<'a>,
+) -> Option<(Lich<T>, Soul<'a>)> {
+    unsafe { crate::redeem(lich, soul) }
 }
