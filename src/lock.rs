@@ -1,5 +1,5 @@
-use crate::{Order, sever::Sever, shroud::Shroud};
-use core::ptr;
+use crate::{Bind, Sever, shroud::Shroud};
+use core::ptr::{self, NonNull};
 use std::sync::{Arc, RwLock, RwLockReadGuard, TryLockError, Weak};
 
 pub struct Lock;
@@ -8,9 +8,39 @@ pub type Soul<'a> = crate::Soul<'a, Lock>;
 pub type Lich<T> = crate::Lich<T, Lock>;
 pub type Guard<'a, T> = crate::Guard<'a, T, Lock>;
 
-impl Order for Lock {
-    type Refer<'a, T: ?Sized + 'a> = RwLockReadGuard<'a, Option<*const T>>;
-    type Strong<T: ?Sized> = Arc<RwLock<Option<*const T>>>;
+unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where Arc<RwLock<Option<&'a T>>>: Send {}
+unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where Arc<RwLock<Option<&'a T>>>: Sync {}
+
+impl<T: Sever + ?Sized> Sever for Arc<RwLock<T>> {
+    fn sever(&mut self) -> bool {
+        match self.write() {
+            Ok(mut guard) => guard.sever(),
+            Err(mut error) => error.get_mut().sever(),
+        }
+    }
+
+    fn try_sever(&mut self) -> Option<bool> {
+        match self.try_write() {
+            Ok(mut guard) => guard.try_sever(),
+            Err(TryLockError::Poisoned(mut error)) => error.get_mut().try_sever(),
+            Err(TryLockError::WouldBlock) => None,
+        }
+    }
+}
+
+impl<T: Sever + ?Sized> Sever for Weak<RwLock<T>> {
+    fn sever(&mut self) -> bool {
+        self.upgrade().is_some_and(|mut strong| strong.sever())
+    }
+
+    fn try_sever(&mut self) -> Option<bool> {
+        self.upgrade()?.try_sever()
+    }
+}
+
+impl Bind for Lock {
+    type Refer<'a, T: ?Sized + 'a> = RwLockReadGuard<'a, Option<NonNull<T>>>;
+    type Strong<T: ?Sized> = Arc<RwLock<Option<NonNull<T>>>>;
     type Weak<'a> = Weak<RwLock<dyn Sever + 'a>>;
 
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
@@ -31,39 +61,6 @@ impl Order for Lock {
 
     fn is_bound_strong<T: ?Sized>(strong: &Self::Strong<T>) -> bool {
         Arc::weak_count(strong) > 0
-    }
-
-    fn try_sever_strong<T: ?Sized>(strong: &Self::Strong<T>) -> Option<bool> {
-        match strong.try_write() {
-            Ok(mut guard) => Some(guard.sever()),
-            Err(TryLockError::Poisoned(mut error)) => Some(error.get_mut().sever()),
-            Err(TryLockError::WouldBlock) => None,
-        }
-    }
-
-    fn try_sever_weak(weak: &Self::Weak<'_>) -> Option<bool> {
-        match weak.upgrade()?.try_write() {
-            Ok(mut guard) => Some(guard.sever()),
-            Err(TryLockError::Poisoned(mut error)) => Some(error.get_mut().sever()),
-            Err(TryLockError::WouldBlock) => None,
-        }
-    }
-
-    fn sever_strong<T: ?Sized>(strong: &Self::Strong<T>) -> bool {
-        match strong.write() {
-            Ok(mut guard) => guard.sever(),
-            Err(mut error) => error.get_mut().sever(),
-        }
-    }
-
-    fn sever_weak(weak: &Self::Weak<'_>) -> bool {
-        match weak.upgrade() {
-            Some(strong) => match strong.write() {
-                Ok(mut guard) => guard.sever(),
-                Err(mut error) => error.get_mut().sever(),
-            },
-            None => false,
-        }
     }
 }
 

@@ -1,8 +1,7 @@
-#![cfg(feature = "lock")]
+#![cfg(feature = "cell")]
 
-use core::ops::Deref;
-use phylactery::lock::{Lich, redeem, ritual};
-use std::{sync::Mutex, thread::spawn};
+use core::{cell::RefCell, ops::Deref};
+use phylactery::cell::{Lich, redeem, ritual};
 
 #[test]
 fn redeem_succeeds_with_none() {
@@ -36,29 +35,17 @@ fn chain_liches() {
 }
 
 #[test]
-fn can_send_to_thread() {
-    let function = || 'a';
-    let (lich, soul) = ritual::<_, dyn Fn() -> char + Send + Sync>(&function);
-    let lich = spawn(move || {
-        let lich = lich;
-        assert_eq!(lich.borrow().unwrap()(), 'a');
-        lich
-    })
-    .join()
-    .unwrap();
-    assert!(redeem(lich, soul).is_none());
-}
-
-#[test]
 fn can_be_stored_as_static() {
-    static LICH: Mutex<Option<Lich<dyn Fn() -> char + Send + Sync>>> = Mutex::new(None);
+    thread_local! {
+        static LICH: RefCell<Option<Lich<dyn Fn() -> char + Send>>> = RefCell::new(None);
+    }
     let function = || 'a';
     let (lich, soul) = ritual(&function);
-    assert!(LICH.lock().unwrap().replace(lich).is_none());
+    assert!(LICH.with_borrow_mut(|slot| slot.replace(lich)).is_none());
     assert_eq!(
-        LICH.lock().unwrap().as_ref().unwrap().borrow().unwrap()(),
+        LICH.with_borrow(|slot| slot.as_ref().unwrap().borrow().unwrap()()),
         'a'
     );
-    let lich = LICH.lock().unwrap().take().unwrap();
+    let lich = LICH.with_borrow_mut(|slot| slot.take()).unwrap();
     assert!(redeem(lich, soul).is_none());
 }

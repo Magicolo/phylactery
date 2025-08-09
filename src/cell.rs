@@ -1,7 +1,7 @@
-use crate::{Order, sever::Sever, shroud::Shroud};
+use crate::{Bind, Sever, shroud::Shroud};
 use core::{
     cell::{Ref, RefCell},
-    ptr,
+    ptr::{self, NonNull},
 };
 use std::rc::{Rc, Weak};
 
@@ -11,9 +11,32 @@ pub type Soul<'a> = crate::Soul<'a, Cell>;
 pub type Lich<T> = crate::Lich<T, Cell>;
 pub type Guard<'a, T> = crate::Guard<'a, T, Cell>;
 
-impl Order for Cell {
-    type Refer<'a, T: ?Sized + 'a> = Ref<'a, Option<*const T>>;
-    type Strong<T: ?Sized> = Rc<RefCell<Option<*const T>>>;
+unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where Rc<RefCell<Option<&'a T>>>: Send {}
+unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where Rc<RefCell<Option<&'a T>>>: Sync {}
+
+impl<T: Sever + ?Sized> Sever for Rc<RefCell<T>> {
+    fn sever(&mut self) -> bool {
+        self.borrow_mut().sever()
+    }
+
+    fn try_sever(&mut self) -> Option<bool> {
+        self.try_borrow_mut().ok()?.try_sever()
+    }
+}
+
+impl<T: Sever + ?Sized> Sever for Weak<RefCell<T>> {
+    fn sever(&mut self) -> bool {
+        self.upgrade().is_some_and(|mut strong| strong.sever())
+    }
+
+    fn try_sever(&mut self) -> Option<bool> {
+        self.upgrade()?.try_sever()
+    }
+}
+
+impl Bind for Cell {
+    type Refer<'a, T: ?Sized + 'a> = Ref<'a, Option<NonNull<T>>>;
+    type Strong<T: ?Sized> = Rc<RefCell<Option<NonNull<T>>>>;
     type Weak<'a> = Weak<RefCell<dyn Sever + 'a>>;
 
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
@@ -34,25 +57,6 @@ impl Order for Cell {
 
     fn is_bound_strong<T: ?Sized>(strong: &Self::Strong<T>) -> bool {
         Rc::weak_count(strong) > 0
-    }
-
-    fn try_sever_strong<T: ?Sized>(strong: &Self::Strong<T>) -> Option<bool> {
-        Some(strong.try_borrow_mut().ok()?.sever())
-    }
-
-    fn try_sever_weak(weak: &Self::Weak<'_>) -> Option<bool> {
-        Some(weak.upgrade()?.try_borrow_mut().ok()?.sever())
-    }
-
-    fn sever_strong<T: ?Sized>(strong: &Self::Strong<T>) -> bool {
-        strong.borrow_mut().sever()
-    }
-
-    fn sever_weak(weak: &Self::Weak<'_>) -> bool {
-        match weak.upgrade() {
-            Some(cell) => cell.borrow_mut().sever(),
-            None => false,
-        }
     }
 }
 

@@ -1,5 +1,7 @@
+use core::ptr::NonNull;
+
 pub trait Shroud<T: ?Sized> {
-    fn shroud(from: &T) -> *const Self;
+    fn shroud(from: &T) -> NonNull<Self>;
 }
 
 #[macro_export]
@@ -32,15 +34,15 @@ macro_rules! shroud {
     (@IMPLEMENT { type: $type: ident, generics: ($($generic: ident),*), traits: ($($trait: path),*) $(,)? }) => {
         impl<$($generic,)*> $crate::shroud::Shroud<dyn $type<$($generic),*> $(+ $trait)*> for dyn $type<$($generic),*> $(+ $trait)* {
             #[inline(always)]
-            fn shroud(from: &(dyn $type<$($generic),*> $(+ $trait)*)) -> *const (dyn $type<$($generic),*> $(+ $trait)*) {
-                from as *const _ as *const _
+            fn shroud(from: &(dyn $type<$($generic),*> $(+ $trait)*)) -> ::core::ptr::NonNull<Self> {
+                unsafe { ::core::ptr::NonNull::new_unchecked(from as *const _ as *const Self as *mut Self) }
             }
         }
 
         impl<$($generic,)* TConcrete: $type<$($generic),*> $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $type<$($generic),*> $(+ $trait)* {
             #[inline(always)]
-            fn shroud(from: &TConcrete) -> *const (dyn $type<$($generic),*> $(+ $trait)*) {
-                from as *const _ as *const _
+            fn shroud(from: &TConcrete) -> ::core::ptr::NonNull<Self> {
+                unsafe { ::core::ptr::NonNull::new_unchecked(from as *const TConcrete as *const Self as *mut Self) }
             }
         }
     };
@@ -74,15 +76,15 @@ macro_rules! shroud_fn {
     (@IMPLEMENT { function: $function: ident, parameters: ($($parameter: ident),*), return: $return: ident, traits: ($($trait: path),*) $(,)? }) => {
         impl<$($parameter,)* $return> $crate::shroud::Shroud<dyn $function($($parameter),*) -> $return $(+ $trait)*> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
             #[inline(always)]
-            fn shroud(from: &(dyn $function($($parameter),*) -> $return $(+ $trait)*)) -> *const (dyn $function($($parameter),*) -> $return $(+ $trait)*) {
-                from as *const _ as *const _
+            fn shroud(from: &(dyn $function($($parameter),*) -> $return $(+ $trait)*)) -> ::core::ptr::NonNull<Self> {
+                unsafe { ::core::ptr::NonNull::new_unchecked(from as *const _ as *const Self as *mut Self) }
             }
         }
 
         impl<$($parameter,)* $return, TConcrete: $function($($parameter),*) -> $return $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
             #[inline(always)]
-            fn shroud(from: &TConcrete) -> *const (dyn $function($($parameter),*) -> $return $(+ $trait)*) {
-                from as *const _ as *const _
+            fn shroud(from: &TConcrete) -> ::core::ptr::NonNull<Self> {
+                unsafe { ::core::ptr::NonNull::new_unchecked(from as *const _ as *const Self as *mut Self) }
             }
         }
     };

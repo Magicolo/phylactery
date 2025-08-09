@@ -13,7 +13,6 @@ pub mod cell;
 pub mod lock;
 #[cfg(feature = "raw")]
 pub mod raw;
-pub mod sever;
 pub mod shroud;
 
 /*
@@ -54,11 +53,15 @@ Evil things that must be impossible:
 - *NEVER* allow giving out a `static` reference to the inner type even though its lifetime is `'static`.
 */
 use crate::shroud::Shroud;
-use core::{mem::ManuallyDrop, ops::Deref, ptr};
+use core::{
+    mem::ManuallyDrop,
+    ops::Deref,
+    ptr::{self, NonNull},
+};
 
-pub trait Order {
-    type Weak<'a>;
-    type Strong<T: ?Sized>;
+pub trait Bind {
+    type Weak<'a>: Sever;
+    type Strong<T: ?Sized>: Sever;
     type Refer<'a, T: ?Sized + 'a>;
 
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
@@ -67,90 +70,101 @@ pub trait Order {
     fn are_bound<T: ?Sized>(strong: &Self::Strong<T>, weak: &Self::Weak<'_>) -> bool;
     fn is_bound_weak(weak: &Self::Weak<'_>) -> bool;
     fn is_bound_strong<T: ?Sized>(strong: &Self::Strong<T>) -> bool;
-    fn try_sever_strong<T: ?Sized>(_: &Self::Strong<T>) -> Option<bool>;
-    fn try_sever_weak(_: &Self::Weak<'_>) -> Option<bool>;
-    fn sever_strong<T: ?Sized>(_: &Self::Strong<T>) -> bool;
-    fn sever_weak(_: &Self::Weak<'_>) -> bool;
 }
 
-pub struct Soul<'a, O: Order + ?Sized>(pub(crate) O::Weak<'a>);
-pub struct Lich<T: ?Sized, O: Order + ?Sized>(pub(crate) O::Strong<T>);
-pub struct Guard<'a, T: ?Sized + 'a, O: Order + ?Sized>(pub(crate) O::Refer<'a, T>);
+pub struct Soul<'a, B: Bind + ?Sized>(pub(crate) B::Weak<'a>);
+pub struct Lich<T: ?Sized, B: Bind + ?Sized>(pub(crate) B::Strong<T>);
+pub struct Guard<'a, T: ?Sized + 'a, B: Bind + ?Sized>(pub(crate) B::Refer<'a, T>);
 
-unsafe impl<T: Send + ?Sized, O: Order + ?Sized> Send for Lich<T, O> {}
-unsafe impl<T: Sync + ?Sized, O: Order + ?Sized> Sync for Lich<T, O> {}
+pub trait Sever {
+    fn sever(&mut self) -> bool;
 
-impl<T: ?Sized, O: Order + ?Sized> Lich<T, O> {
+    fn try_sever(&mut self) -> Option<bool> {
+        Some(self.sever())
+    }
+}
+
+impl<T> Sever for Option<T> {
+    fn sever(&mut self) -> bool {
+        self.take().is_some()
+    }
+}
+
+impl<T: ?Sized, B: Bind + ?Sized> Lich<T, B> {
     pub fn is_bound(&self) -> bool {
-        O::is_bound_strong(&self.0)
-    }
-
-    pub fn sever(self) -> bool {
-        O::sever_strong(&self.0)
-    }
-
-    pub fn try_sever(self) -> Result<bool, Self> {
-        O::try_sever_strong(&self.0).ok_or(self)
+        B::is_bound_strong(&self.0)
     }
 }
 
-impl<O: Order + ?Sized> Soul<'_, O> {
+impl<T: ?Sized, B: Bind + ?Sized> Lich<T, B> {
+    pub fn sever(mut self) -> bool {
+        self.0.sever()
+    }
+
+    pub fn try_sever(mut self) -> Result<bool, Self> {
+        self.0.try_sever().ok_or(self)
+    }
+}
+
+impl<B: Bind + ?Sized> Soul<'_, B> {
+    pub fn sever(mut self) -> bool {
+        self.0.sever()
+    }
+
+    pub fn try_sever(mut self) -> Result<bool, Self> {
+        self.0.try_sever().ok_or(self)
+    }
+}
+
+impl<B: Bind + ?Sized> Soul<'_, B> {
     pub fn is_bound(&self) -> bool {
-        O::is_bound_weak(&self.0)
-    }
-
-    pub fn sever(self) -> bool {
-        O::sever_weak(&self.0)
-    }
-
-    pub fn try_sever(self) -> Result<bool, Self> {
-        O::try_sever_weak(&self.0).ok_or(self)
+        B::is_bound_weak(&self.0)
     }
 }
 
-impl<T: ?Sized, O: Order + ?Sized> Drop for Lich<T, O> {
+impl<T: ?Sized, B: Bind + ?Sized> Drop for Lich<T, B> {
     fn drop(&mut self) {
-        O::sever_strong(&self.0);
+        self.0.sever();
     }
 }
 
-impl<O: Order + ?Sized> Drop for Soul<'_, O> {
+impl<B: Bind + ?Sized> Drop for Soul<'_, B> {
     fn drop(&mut self) {
-        O::sever_weak(&self.0);
+        self.0.sever();
     }
 }
 
-impl<'a, T: ?Sized, O: Order<Refer<'a, T>: Deref<Target = Option<*const T>>> + ?Sized> Deref
-    for Guard<'a, T, O>
+impl<'a, T: ?Sized, B: Bind<Refer<'a, T>: Deref<Target = Option<NonNull<T>>>> + ?Sized> Deref
+    for Guard<'a, T, B>
 {
     type Target = T;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        unsafe { &**self.0.deref().as_ref().unwrap_unchecked() }
+        unsafe { self.0.deref().as_ref().unwrap_unchecked().as_ref() }
     }
 }
 
-impl<'a, T: ?Sized, O: Order<Refer<'a, T>: AsRef<Option<*const T>>> + ?Sized> AsRef<T>
-    for Guard<'a, T, O>
+impl<'a, T: ?Sized, B: Bind<Refer<'a, T>: AsRef<Option<NonNull<T>>>> + ?Sized> AsRef<T>
+    for Guard<'a, T, B>
 {
     fn as_ref(&self) -> &T {
-        unsafe { &**self.0.as_ref().as_ref().unwrap_unchecked() }
+        unsafe { self.0.as_ref().as_ref().unwrap_unchecked().as_ref() }
     }
 }
 
-fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a, O: Order + ?Sized>(
+fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a, B: Bind + ?Sized>(
     value: &'a T,
-) -> (Lich<S, O>, Soul<'a, O>) {
-    let (strong, weak) = O::bind(value);
+) -> (Lich<S, B>, Soul<'a, B>) {
+    let (strong, weak) = B::bind(value);
     (Lich(strong), Soul(weak))
 }
 
-unsafe fn redeem<'a, T: ?Sized + 'a, O: Order + ?Sized>(
-    lich: Lich<T, O>,
-    soul: Soul<'a, O>,
-) -> Option<(Lich<T, O>, Soul<'a, O>)> {
-    if O::are_bound(&lich.0, &soul.0) {
+unsafe fn redeem<'a, T: ?Sized + 'a, B: Bind + ?Sized>(
+    lich: Lich<T, B>,
+    soul: Soul<'a, B>,
+) -> Option<(Lich<T, B>, Soul<'a, B>)> {
+    if B::are_bound(&lich.0, &soul.0) {
         let lich = ManuallyDrop::new(lich);
         unsafe { ptr::read(&lich.0) };
         let soul = ManuallyDrop::new(soul);
