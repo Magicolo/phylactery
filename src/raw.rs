@@ -1,5 +1,8 @@
 use crate::{Bind, Sever, shroud::Shroud};
-use core::ptr::{self, NonNull};
+use core::{
+    marker::PhantomData,
+    ptr::{self, NonNull},
+};
 
 pub struct Raw;
 
@@ -11,7 +14,7 @@ unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where &'a T: Send {}
 unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where &'a T: Sync {}
 
 pub struct Strong<T: ?Sized>(NonNull<T>);
-pub struct Weak<'a>(&'a ());
+pub struct Weak<'a>(NonNull<()>, PhantomData<&'a ()>);
 
 impl<T: ?Sized> Sever for Strong<T> {
     fn sever(&mut self) -> bool {
@@ -41,14 +44,15 @@ impl Bind for Raw {
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
         value: &'a T,
     ) -> (Self::Strong<S>, Self::Weak<'a>) {
-        (Strong(S::shroud(value)), Weak(&()))
+        let pointer = S::shroud(value);
+        (Strong(pointer), Weak(pointer.cast(), PhantomData))
     }
 
     /// This function can return false positives if the same `&'a T` is bound
     /// twice and the `Self::Strong<T>` of the first binding is checked against
     /// the `Self::Weak<'a>` of the second.
     fn are_bound<'a, T: ?Sized>(strong: &Self::Strong<T>, weak: &Self::Weak<'a>) -> bool {
-        ptr::addr_eq(strong.0.as_ptr(), weak.0)
+        ptr::addr_eq(strong.0.as_ptr(), weak.0.as_ptr())
     }
 
     /// `Raw` order liches are always bounded until redeemed.
