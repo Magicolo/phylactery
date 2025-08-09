@@ -1,12 +1,24 @@
 [package]
 name = "phylactery"
-version = "0.1.0"
-edition = "2024"
+version = "0.2.0"
+edition = "2021"
+authors = ["Magicolo <magicololand@gmail.com>"]
+readme = "README.md"
+documentation = "https://docs.rs/phylactery/latest/checkito/"
+description = "Safe wrappers around lifetime extension by splitting a `&'a T` into a `Lich<dyn T + 'b>` (`'b` can be any chosen lifetime) and a `Soul<'a>` which tracks the original lifetime."
+license = "MIT"
+repository = "https://github.com/Magicolo/phylactery"
+keywords = []
+categories = []
+rust-version = "1.79.0"
 
-[dependencies]
+[badges]
+github = { repository = "Magicolo/phylactery", workflow = "test" }
 
 [features]
 default = ["cell", "lock", "raw"]
 cell = []
 lock = []
 raw = []
+
+[dependencies]

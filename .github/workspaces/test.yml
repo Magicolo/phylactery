@@ -1,0 +1,74 @@
+name: test
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: 
+      image: ghcr.io/magicolo/rust
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        cargo hack build --release --lib --bins --benches --tests --verbose --feature-powerset
+        cargo hack build --release --lib --bins --benches --tests --verbose --feature-powerset --rust-version
+        cargo hack build --release --examples --verbose
+  test:
+    runs-on: ubuntu-latest
+    container: 
+      image: ghcr.io/magicolo/rust
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        cargo hack test --release --lib --bins --benches --tests --verbose --feature-powerset
+        cargo hack test --release --lib --bins --benches --tests --verbose --feature-powerset --rust-version
+        cargo hack test --release --doc --verbose --feature-powerset
+        cargo hack test --release --examples --verbose
+  clippy:
+    runs-on: ubuntu-latest
+    container: 
+      image: ghcr.io/magicolo/rust
+    steps:
+    - uses: actions/checkout@v4
+    - run: |
+        cargo hack clippy --release --lib --bins --benches --tests --verbose --feature-powerset -- --deny warnings
+        cargo hack clippy --release --examples --verbose -- --deny warnings
+  doc:
+    runs-on: ubuntu-latest
+    container: 
+      image: ghcr.io/magicolo/rust
+    steps:
+    - uses: actions/checkout@v4
+    - run: cargo hack doc --no-deps --release --verbose --feature-powerset
+  semver:
+    runs-on: ubuntu-latest
+    container: 
+      image: ghcr.io/magicolo/rust
+    steps:
+    - uses: actions/checkout@v4
+    - run: cargo semver-checks --verbose
+  msrv:
+    runs-on: ubuntu-latest
+    container: 
+      image: ghcr.io/magicolo/rust
+    steps:
+    - uses: actions/checkout@v4
+    - run: cargo msrv verify
+  audit:
+    runs-on: ubuntu-latest
+    container: 
+      image: ghcr.io/magicolo/rust
+    steps:
+    - uses: actions/checkout@v4
+    - run: cargo audit
+  coverage:
+    runs-on: ubuntu-latest
+    container: 
+      image: ghcr.io/magicolo/rust
+    steps:
+    - uses: actions/checkout@v4
+      run: cargo llvm-cov --all-targets --all-features --release --locked --fail-under-regions 50 --verbose
