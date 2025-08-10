@@ -107,6 +107,12 @@ impl<B: Bind + ?Sized> Soul<'_, B> {
     }
 }
 
+impl<T: ?Sized, B: Bind<Data<T>: Clone> + ?Sized> Clone for Lich<T, B> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
 impl<T: ?Sized, B: Bind + ?Sized> Drop for Lich<T, B> {
     fn drop(&mut self) {
         self.0.sever();
