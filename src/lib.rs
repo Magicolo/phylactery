@@ -10,6 +10,7 @@ TODO:
 - Myth: The [`Lich<T>`] is a being that forfeited its [`Soul<'a>`] through a ritual in order to become undead.
 - Rust: The [`Lich<T>`] is a `&'a T` that forfeited its lifetime through some unsafe code in order to become `'static`.
 
+- fill cheats.rs with the 2 scenarios below
 - 2 scenarios come to mind for usage of the `Lich`:
     - thread local scoped state
         - for example, a profiler stores some thread-local data that lives on the stack in a static variable such that
@@ -21,26 +22,11 @@ TODO:
         - since the `Lich` can have any chosen lifetime, it can choose `'static` in order to cross a thread boundary
         using a regular `spawn`, thus bridging and/or expanding the capabilities of threading libraries
 
-- It is never safe to give a `&'static T` from a `&'a T`, even within a closure, since static references may escape the closure.
-- Even when hidden within a data handle, it must be known that it the handle may escape the closure.
+- Even when hidden within a data handle, it must be known that the handle may escape the closure.
 - Should it be possible to `Clone` the `Lich`?
     - It can be trivially cloned because of its `Arc`.
     - It may be unclear that using `borrow_mut` takes a `write` lock; thus can dead lock.
 - What about not supporting `borrow_mut`?
-- What about requiring the `Lich<T>` and its `Soul<'a>` to be reunited?
-
-Evil things that must be impossible:
-- Storing an extended lifetime value in a `static` field.
-    - Unsized values prevent most of the issues...
-    - `Split` and `SplitMut` traits should be `unsafe`.
-    static EVIL: OnceLock<Arc<Mutex<dyn Fn() + Send + Sync + 'static>>> = OnceLock::new();
-    let (mut data, life) = split_mut::<dyn Fn() + Send + Sync + 'static>(f);
-    let evil = EVIL.get_or_init(|| Arc::new(Mutex::new(|| {})));
-    swap(
-        data.borrow_mut().deref_mut(),
-        evil.lock().unwrap().deref_mut(),
-    );
-- *NEVER* allow giving out a `static` reference to the inner type even though its lifetime is `'static`.
 */
 use crate::shroud::Shroud;
 use core::{
