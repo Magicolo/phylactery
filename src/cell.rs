@@ -30,7 +30,9 @@ impl<T: Sever + ?Sized> Sever for Weak<RefCell<T>> {
     }
 
     fn try_sever(&mut self) -> Option<bool> {
-        self.upgrade()?.try_sever()
+        self.upgrade()
+            .as_mut()
+            .map_or(Some(false), Sever::try_sever)
     }
 }
 

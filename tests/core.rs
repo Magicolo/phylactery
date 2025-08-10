@@ -13,6 +13,54 @@ macro_rules! lock_cell {
             assert!(redeem(lich1, soul1).is_none());
             assert!(redeem(lich2, soul2).is_none());
         }
+
+        #[test]
+        fn can_sever_lich() {
+            let function = || {};
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            assert!(lich.sever());
+            assert!(!soul.sever());
+        }
+
+        #[test]
+        fn can_sever_soul() {
+            let function = || {};
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            assert!(soul.sever());
+            assert!(!lich.sever());
+        }
+
+        #[test]
+        fn can_try_sever_lich() {
+            let function = || {};
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            assert_eq!(lich.try_sever().ok(), Some(true));
+            assert_eq!(soul.try_sever().ok(), Some(false));
+        }
+
+        #[test]
+        fn can_try_sever_soul() {
+            let function = || {};
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            assert_eq!(soul.try_sever().ok(), Some(true));
+            assert_eq!(lich.try_sever().ok(), Some(false));
+        }
+
+        #[test]
+        fn is_not_bound_after_lich_sever() {
+            let function = || {};
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            assert!(lich.sever());
+            assert!(!soul.is_bound());
+        }
+
+        #[test]
+        fn is_not_bound_after_soul_sever() {
+            let function = || {};
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            assert!(soul.sever());
+            assert!(!lich.is_bound());
+        }
     };
 }
 
@@ -68,6 +116,15 @@ macro_rules! lock_cell_raw {
                 assert!($($safe)? { redeem(lich2, soul2) }.is_none());
             }
             assert!($($safe)? { redeem(lich1, soul1) }.is_none());
+        }
+
+        #[test]
+        fn is_bound() {
+            let function = || {};
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            assert!(lich.is_bound());
+            assert!(soul.is_bound());
+            assert!($($safe)? { redeem(lich, soul) }.is_none());
         }
     };
 }
