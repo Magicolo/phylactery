@@ -3,6 +3,8 @@
 <p align="center">
     <em> 
 {{ package.description }}
+
+Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dyn Trait + 'static>` and a `Soul<'a>` pair such that the `dyn Trait` can cross `'static` boundaries while tracking the lifetime `'a`.
     </em>
 </p>
 
