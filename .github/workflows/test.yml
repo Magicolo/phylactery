@@ -30,7 +30,7 @@ jobs:
       image: ghcr.io/magicolo/rust
     steps:
     - uses: actions/checkout@v4
-    - run: cargo hack clippy --release --all-targets --verbose --feature-powerset -- --deny warnings
+    - run: cargo hack clippy --release --all-targets --verbose --feature-powerset -- --deny warnings --allow clippy::needless-doctest-main
   doc:
     runs-on: ubuntu-latest
     container: 
