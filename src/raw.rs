@@ -62,8 +62,8 @@ impl Bind for Raw {
     /// This function can return false positives if the same `&'a T` is bound
     /// twice and the `Self::Data<T>` of the first binding is checked against
     /// the `Self::Life<'a>` of the second.
-    fn are_bound<'a, T: ?Sized>(strong: &Self::Data<T>, weak: &Self::Life<'a>) -> bool {
-        ptr::addr_eq(strong.0.as_ptr(), weak.0.as_ptr())
+    fn are_bound<'a, T: ?Sized>(data: &Self::Data<T>, life: &Self::Life<'a>) -> bool {
+        ptr::addr_eq(data.0.as_ptr(), life.0.as_ptr())
     }
 
     /// `Raw` order liches are always bounded until redeemed.

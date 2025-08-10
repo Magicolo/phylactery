@@ -46,13 +46,13 @@ impl Bind for Cell {
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
         value: &'a T,
     ) -> (Self::Data<S>, Self::Life<'a>) {
-        let strong = Rc::new(RefCell::new(Some(S::shroud(value))));
-        let weak = Rc::downgrade(&strong);
-        (strong, weak)
+        let data = Rc::new(RefCell::new(Some(S::shroud(value))));
+        let life = Rc::downgrade(&data);
+        (data, life)
     }
 
-    fn are_bound<'a, T: ?Sized>(strong: &Self::Data<T>, weak: &Self::Life<'a>) -> bool {
-        ptr::addr_eq(Rc::as_ptr(strong), Weak::as_ptr(weak))
+    fn are_bound<'a, T: ?Sized>(data: &Self::Data<T>, life: &Self::Life<'a>) -> bool {
+        ptr::addr_eq(Rc::as_ptr(data), Weak::as_ptr(life))
     }
 
     fn is_life_bound(life: &Self::Life<'_>) -> bool {

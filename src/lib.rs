@@ -50,15 +50,14 @@ pub trait Bind {
     ) -> (Self::Data<S>, Self::Life<'a>);
     /// Checks whether the `Self::Data<T>` and `Self::Life<'a>` have been
     /// bound together with the same `Self::bind` call.
-    fn are_bound<T: ?Sized>(strong: &Self::Data<T>, weak: &Self::Life<'_>) -> bool;
-    fn is_life_bound(weak: &Self::Life<'_>) -> bool;
-    fn is_data_bound<T: ?Sized>(strong: &Self::Data<T>) -> bool;
+    fn are_bound<T: ?Sized>(data: &Self::Data<T>, life: &Self::Life<'_>) -> bool;
+    fn is_life_bound(life: &Self::Life<'_>) -> bool;
+    fn is_data_bound<T: ?Sized>(data: &Self::Data<T>) -> bool;
 }
 
 pub struct Soul<'a, B: Bind + ?Sized>(pub(crate) B::Life<'a>);
 pub struct Lich<T: ?Sized, B: Bind + ?Sized>(pub(crate) B::Data<T>);
 pub struct Guard<'a, T: ?Sized + 'a, B: Bind + ?Sized>(pub(crate) B::Refer<'a, T>);
-
 pub struct RedeemError<'a, T: ?Sized, B: Bind + ?Sized>(Lich<T, B>, Soul<'a, B>);
 pub type RedeemResult<'a, T, B> = Result<Option<Soul<'a, B>>, RedeemError<'a, T, B>>;
 
@@ -142,8 +141,8 @@ impl<'a, T: ?Sized, B: Bind<Refer<'a, T>: AsRef<Option<NonNull<T>>>> + ?Sized> A
 fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a, B: Bind + ?Sized>(
     value: &'a T,
 ) -> (Lich<S, B>, Soul<'a, B>) {
-    let (strong, weak) = B::bind(value);
-    (Lich(strong), Soul(weak))
+    let (data, life) = B::bind(value);
+    (Lich(data), Soul(life))
 }
 
 impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> fmt::Debug for RedeemError<'a, T, B> {

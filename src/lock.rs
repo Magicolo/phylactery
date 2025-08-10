@@ -50,21 +50,21 @@ impl Bind for Lock {
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
         value: &'a T,
     ) -> (Self::Data<S>, Self::Life<'a>) {
-        let strong = Arc::new(RwLock::new(Some(S::shroud(value))));
-        let weak = Arc::downgrade(&strong);
-        (strong, weak)
+        let data = Arc::new(RwLock::new(Some(S::shroud(value))));
+        let life = Arc::downgrade(&data);
+        (data, life)
     }
 
-    fn are_bound<'a, T: ?Sized>(strong: &Self::Data<T>, weak: &Self::Life<'a>) -> bool {
-        ptr::addr_eq(Arc::as_ptr(strong), Weak::as_ptr(weak))
+    fn are_bound<'a, T: ?Sized>(data: &Self::Data<T>, life: &Self::Life<'a>) -> bool {
+        ptr::addr_eq(Arc::as_ptr(data), Weak::as_ptr(life))
     }
 
-    fn is_life_bound(weak: &Self::Life<'_>) -> bool {
-        Weak::strong_count(weak) > 0
+    fn is_life_bound(life: &Self::Life<'_>) -> bool {
+        Weak::strong_count(life) > 0
     }
 
-    fn is_data_bound<T: ?Sized>(strong: &Self::Data<T>) -> bool {
-        Arc::weak_count(strong) > 0
+    fn is_data_bound<T: ?Sized>(data: &Self::Data<T>) -> bool {
+        Arc::weak_count(data) > 0
     }
 }
 
