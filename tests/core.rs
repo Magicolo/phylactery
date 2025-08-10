@@ -184,4 +184,51 @@ mod raw {
         assert!(unsafe { redeem(lich1, soul2) }.is_none());
         assert!(unsafe { redeem(lich2, soul1) }.is_none());
     }
+
+    #[test]
+    #[should_panic]
+    fn panics_when_lich_is_dropped() {
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        drop(lich);
+        drop(soul);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panics_when_soul_is_dropped() {
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        drop(soul);
+        drop(lich);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panics_when_lich_is_severed() {
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        lich.sever();
+        drop(soul);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panics_when_soul_is_severed() {
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        soul.sever();
+        drop(lich);
+    }
+
+    #[test]
+    fn try_sever_always_fails() {
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        let lich = lich.try_sever().unwrap_err();
+        let lich = lich.try_sever().unwrap_err();
+        let soul = soul.try_sever().unwrap_err();
+        let soul = soul.try_sever().unwrap_err();
+        unsafe { redeem(lich, soul) };
+    }
 }
