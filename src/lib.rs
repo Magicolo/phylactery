@@ -8,29 +8,6 @@ pub mod lock;
 pub mod raw;
 pub mod shroud;
 
-/*
-TODO:
-- Myth: The [`Lich<T>`] is a being that forfeited its [`Soul<'a>`] through a ritual in order to become undead.
-- Rust: The [`Lich<T>`] is a `&'a T` that forfeited its lifetime through some unsafe code in order to become `'static`.
-
-- fill cheats.rs with the 2 scenarios below
-- 2 scenarios come to mind for usage of the `Lich`:
-    - thread local scoped state
-        - for example, a profiler stores some thread-local data that lives on the stack in a static variable such that
-        the profiler object does not need to be carried around
-        - similarly for a logger scope a log prefix or values that live on the stack
-        - normally, one would need to somehow move the values from the stack to a thread-local storage, since there is
-        a `'static` requirement and this would simply not be possible for non-static values
-    - scoped `thread/task::spawn`
-        - since the `Lich` can have any chosen lifetime, it can choose `'static` in order to cross a thread boundary
-        using a regular `spawn`, thus bridging and/or expanding the capabilities of threading libraries
-
-- Even when hidden within a data handle, it must be known that the handle may escape the closure.
-- Should it be possible to `Clone` the `Lich`?
-    - It can be trivially cloned because of its `Arc`.
-    - It may be unclear that using `borrow_mut` takes a `write` lock; thus can dead lock.
-- What about not supporting `borrow_mut`?
-*/
 use crate::shroud::Shroud;
 use core::{
     any::type_name,
