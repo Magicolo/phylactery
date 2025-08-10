@@ -201,3 +201,27 @@ unsafe fn redeem<'a, T: ?Sized + 'a, B: Bind + ?Sized>(
         Err(RedeemError(lich, soul))
     }
 }
+
+macro_rules! compile_fail {
+    ($function: ident, $block: block) => {
+        #[allow(dead_code)]
+        #[doc = concat!("```compile_fail\n", stringify!($block), "\n```")]
+        fn $function() {}
+    };
+}
+
+compile_fail!(can_not_clone_lich, {
+    use phylactery::raw::ritual;
+
+    let function = || {};
+    let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+    lich.clone();
+});
+
+compile_fail!(can_not_clone_soul, {
+    use phylactery::raw::ritual;
+
+    let function = || {};
+    let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+    soul.clone();
+});
