@@ -4,6 +4,8 @@
     <em> 
 
 {{ package.description }}
+On drop of the `Soul<'a>` or on calling `Soul::sever`, it is guaranteed that the captured reference is also dropped, thus
+inaccessible from a remaining `Lich<T>`.
     </em>
 </p>
 
