@@ -31,6 +31,7 @@ Different variants exist with different tradeoffs:
     - Does require some `unsafe` calls.
     - `Lich<T>` can **not** be cloned.
     - Can be sent to other threads.
+    - Can be used in `#[no_std]` contexts.
 - `phylactery::cell`: 
     - Adds an indirection and minimal overhead using `Rc<RefCell>`.
     - Allows for the use of the `Lich<T>/Soul<'a>::sever` methods.
@@ -48,7 +49,6 @@ Different variants exist with different tradeoffs:
     - `Lich<T>` can be cloned.
     - Can be sent to other threads.
     
-
 *Since this library makes use of some `unsafe` code, all tests are run with `miri` to try to catch any unsoundness.*
 
 ---
