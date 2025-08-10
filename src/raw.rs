@@ -20,7 +20,7 @@ pub struct Life<'a>(NonNull<()>, PhantomData<&'a ()>);
 
 impl<T: ?Sized> Sever for Data<T> {
     fn sever(&mut self) -> bool {
-        try_panic()
+        sever_panic()
     }
 
     fn try_sever(&mut self) -> Option<bool> {
@@ -30,7 +30,7 @@ impl<T: ?Sized> Sever for Data<T> {
 
 impl Sever for Life<'_> {
     fn sever(&mut self) -> bool {
-        try_panic()
+        sever_panic()
     }
 
     fn try_sever(&mut self) -> Option<bool> {
@@ -93,7 +93,7 @@ pub unsafe fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> Redee
     unsafe { crate::redeem(lich, soul) }
 }
 
-fn try_panic() -> bool {
+fn sever_panic() -> bool {
     #[cfg(feature = "std")]
     if std::thread::panicking() {
         return false;

@@ -206,7 +206,7 @@ macro_rules! compile_fail {
     ($function: ident, $block: block) => {
         #[allow(dead_code)]
         #[doc = concat!("```compile_fail\n", stringify!($block), "\n```")]
-        fn $function() {}
+        const fn $function() {}
     };
 }
 
