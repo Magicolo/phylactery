@@ -86,5 +86,5 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (
 }
 
 pub fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> RedeemResult<'a, T> {
-    unsafe { crate::redeem(lich, soul) }
+    unsafe { crate::redeem(lich, soul, true) }
 }

@@ -146,13 +146,6 @@ impl<'a, T: ?Sized, B: Bind<Refer<'a, T>: AsRef<Option<NonNull<T>>>> + ?Sized> A
     }
 }
 
-fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a, B: Bind + ?Sized>(
-    value: &'a T,
-) -> (Lich<S, B>, Soul<'a, B>) {
-    let (data, life) = B::bind(value);
-    (Lich(data), Soul(life))
-}
-
 impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> fmt::Debug for RedeemError<'a, T, B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -183,14 +176,22 @@ impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> RedeemError<'a, T, B> {
     }
 }
 
+fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a, B: Bind + ?Sized>(
+    value: &'a T,
+) -> (Lich<S, B>, Soul<'a, B>) {
+    let (data, life) = B::bind(value);
+    (Lich(data), Soul(life))
+}
+
 unsafe fn redeem<'a, T: ?Sized + 'a, B: Bind + ?Sized>(
     lich: Lich<T, B>,
     soul: Soul<'a, B>,
+    bound: bool,
 ) -> RedeemResult<'a, T, B> {
     if B::are_bound(&lich.0, &soul.0) {
         let lich = ManuallyDrop::new(lich);
         drop(unsafe { ptr::read(&lich.0) });
-        if B::is_life_bound(&soul.0) {
+        if bound && B::is_life_bound(&soul.0) {
             Ok(Some(soul))
         } else {
             let soul = ManuallyDrop::new(soul);
