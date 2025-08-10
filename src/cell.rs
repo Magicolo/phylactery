@@ -35,28 +35,28 @@ impl<T: Sever + ?Sized> Sever for Weak<RefCell<T>> {
 }
 
 impl Bind for Cell {
+    type Data<T: ?Sized> = Rc<RefCell<Option<NonNull<T>>>>;
+    type Life<'a> = Weak<RefCell<dyn Sever + 'a>>;
     type Refer<'a, T: ?Sized + 'a> = Ref<'a, Option<NonNull<T>>>;
-    type Strong<T: ?Sized> = Rc<RefCell<Option<NonNull<T>>>>;
-    type Weak<'a> = Weak<RefCell<dyn Sever + 'a>>;
 
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
         value: &'a T,
-    ) -> (Self::Strong<S>, Self::Weak<'a>) {
+    ) -> (Self::Data<S>, Self::Life<'a>) {
         let strong = Rc::new(RefCell::new(Some(S::shroud(value))));
         let weak = Rc::downgrade(&strong);
         (strong, weak)
     }
 
-    fn are_bound<'a, T: ?Sized>(strong: &Self::Strong<T>, weak: &Self::Weak<'a>) -> bool {
+    fn are_bound<'a, T: ?Sized>(strong: &Self::Data<T>, weak: &Self::Life<'a>) -> bool {
         ptr::addr_eq(Rc::as_ptr(strong), Weak::as_ptr(weak))
     }
 
-    fn is_bound_weak(weak: &Self::Weak<'_>) -> bool {
-        Weak::strong_count(weak) > 0
+    fn is_life_bound(life: &Self::Life<'_>) -> bool {
+        Weak::strong_count(life) > 0
     }
 
-    fn is_bound_strong<T: ?Sized>(strong: &Self::Strong<T>) -> bool {
-        Rc::weak_count(strong) > 0
+    fn is_data_bound<T: ?Sized>(data: &Self::Data<T>) -> bool {
+        Rc::weak_count(data) > 0
     }
 }
 

@@ -50,22 +50,24 @@ use core::{
 };
 
 pub trait Bind {
-    type Weak<'a>: Sever;
-    type Strong<T: ?Sized>: Sever;
+    type Data<T: ?Sized>: Sever;
+    type Life<'a>: Sever;
     type Refer<'a, T: ?Sized + 'a>;
 
-    /// Splits the provided reference into its data part `Self::Strong<T>` and its lifetime part `Self::Weak<'a>`, binding them together.
+    /// Splits the provided reference into its data part `Self::Data<T>` and
+    /// its lifetime part `Self::Life<'a>`, binding them together.
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
         value: &'a T,
-    ) -> (Self::Strong<S>, Self::Weak<'a>);
-    /// Checks whether the `Self::Strong<T>` and `Self::Weak<'a>` have been bound together with the same `Self::bind` call.
-    fn are_bound<T: ?Sized>(strong: &Self::Strong<T>, weak: &Self::Weak<'_>) -> bool;
-    fn is_bound_weak(weak: &Self::Weak<'_>) -> bool;
-    fn is_bound_strong<T: ?Sized>(strong: &Self::Strong<T>) -> bool;
+    ) -> (Self::Data<S>, Self::Life<'a>);
+    /// Checks whether the `Self::Data<T>` and `Self::Life<'a>` have been
+    /// bound together with the same `Self::bind` call.
+    fn are_bound<T: ?Sized>(strong: &Self::Data<T>, weak: &Self::Life<'_>) -> bool;
+    fn is_life_bound(weak: &Self::Life<'_>) -> bool;
+    fn is_data_bound<T: ?Sized>(strong: &Self::Data<T>) -> bool;
 }
 
-pub struct Soul<'a, B: Bind + ?Sized>(pub(crate) B::Weak<'a>);
-pub struct Lich<T: ?Sized, B: Bind + ?Sized>(pub(crate) B::Strong<T>);
+pub struct Soul<'a, B: Bind + ?Sized>(pub(crate) B::Life<'a>);
+pub struct Lich<T: ?Sized, B: Bind + ?Sized>(pub(crate) B::Data<T>);
 pub struct Guard<'a, T: ?Sized + 'a, B: Bind + ?Sized>(pub(crate) B::Refer<'a, T>);
 
 pub trait Sever {
@@ -84,7 +86,7 @@ impl<T> Sever for Option<T> {
 
 impl<T: ?Sized, B: Bind + ?Sized> Lich<T, B> {
     pub fn is_bound(&self) -> bool {
-        B::is_bound_strong(&self.0)
+        B::is_data_bound(&self.0)
     }
 }
 
@@ -110,7 +112,7 @@ impl<B: Bind + ?Sized> Soul<'_, B> {
 
 impl<B: Bind + ?Sized> Soul<'_, B> {
     pub fn is_bound(&self) -> bool {
-        B::is_bound_weak(&self.0)
+        B::is_life_bound(&self.0)
     }
 }
 

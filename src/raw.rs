@@ -13,10 +13,10 @@ pub type Guard<'a, T> = crate::Guard<'a, T, Raw>;
 unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where &'a T: Send {}
 unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where &'a T: Sync {}
 
-pub struct Strong<T: ?Sized>(NonNull<T>);
-pub struct Weak<'a>(NonNull<()>, PhantomData<&'a ()>);
+pub struct Data<T: ?Sized>(NonNull<T>);
+pub struct Life<'a>(NonNull<()>, PhantomData<&'a ()>);
 
-impl<T: ?Sized> Sever for Strong<T> {
+impl<T: ?Sized> Sever for Data<T> {
     fn sever(&mut self) -> bool {
         panic!("this `Raw` order `Lich<T>` must be redeemed")
     }
@@ -26,7 +26,7 @@ impl<T: ?Sized> Sever for Strong<T> {
     }
 }
 
-impl Sever for Weak<'_> {
+impl Sever for Life<'_> {
     fn sever(&mut self) -> bool {
         panic!("this `Raw` order `Lich<T>` must be redeemed")
     }
@@ -37,31 +37,31 @@ impl Sever for Weak<'_> {
 }
 
 impl Bind for Raw {
+    type Data<T: ?Sized> = Data<T>;
+    type Life<'a> = Life<'a>;
     type Refer<'a, T: ?Sized + 'a> = &'a T;
-    type Strong<T: ?Sized> = Strong<T>;
-    type Weak<'a> = Weak<'a>;
 
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
         value: &'a T,
-    ) -> (Self::Strong<S>, Self::Weak<'a>) {
+    ) -> (Self::Data<S>, Self::Life<'a>) {
         let pointer = S::shroud(value);
-        (Strong(pointer), Weak(pointer.cast(), PhantomData))
+        (Data(pointer), Life(pointer.cast(), PhantomData))
     }
 
     /// This function can return false positives if the same `&'a T` is bound
-    /// twice and the `Self::Strong<T>` of the first binding is checked against
-    /// the `Self::Weak<'a>` of the second.
-    fn are_bound<'a, T: ?Sized>(strong: &Self::Strong<T>, weak: &Self::Weak<'a>) -> bool {
+    /// twice and the `Self::Data<T>` of the first binding is checked against
+    /// the `Self::Life<'a>` of the second.
+    fn are_bound<'a, T: ?Sized>(strong: &Self::Data<T>, weak: &Self::Life<'a>) -> bool {
         ptr::addr_eq(strong.0.as_ptr(), weak.0.as_ptr())
     }
 
     /// `Raw` order liches are always bounded until redeemed.
-    fn is_bound_weak(_: &Self::Weak<'_>) -> bool {
+    fn is_life_bound(_: &Self::Life<'_>) -> bool {
         true
     }
 
     /// `Raw` order liches are always bounded until redeemed.
-    fn is_bound_strong<T: ?Sized>(_: &Self::Strong<T>) -> bool {
+    fn is_data_bound<T: ?Sized>(_: &Self::Data<T>) -> bool {
         true
     }
 }

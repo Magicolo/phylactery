@@ -39,27 +39,27 @@ impl<T: Sever + ?Sized> Sever for Weak<RwLock<T>> {
 }
 
 impl Bind for Lock {
+    type Data<T: ?Sized> = Arc<RwLock<Option<NonNull<T>>>>;
+    type Life<'a> = Weak<RwLock<dyn Sever + 'a>>;
     type Refer<'a, T: ?Sized + 'a> = RwLockReadGuard<'a, Option<NonNull<T>>>;
-    type Strong<T: ?Sized> = Arc<RwLock<Option<NonNull<T>>>>;
-    type Weak<'a> = Weak<RwLock<dyn Sever + 'a>>;
 
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
         value: &'a T,
-    ) -> (Self::Strong<S>, Self::Weak<'a>) {
+    ) -> (Self::Data<S>, Self::Life<'a>) {
         let strong = Arc::new(RwLock::new(Some(S::shroud(value))));
         let weak = Arc::downgrade(&strong);
         (strong, weak)
     }
 
-    fn are_bound<'a, T: ?Sized>(strong: &Self::Strong<T>, weak: &Self::Weak<'a>) -> bool {
+    fn are_bound<'a, T: ?Sized>(strong: &Self::Data<T>, weak: &Self::Life<'a>) -> bool {
         ptr::addr_eq(Arc::as_ptr(strong), Weak::as_ptr(weak))
     }
 
-    fn is_bound_weak(weak: &Self::Weak<'_>) -> bool {
+    fn is_life_bound(weak: &Self::Life<'_>) -> bool {
         Weak::strong_count(weak) > 0
     }
 
-    fn is_bound_strong<T: ?Sized>(strong: &Self::Strong<T>) -> bool {
+    fn is_data_bound<T: ?Sized>(strong: &Self::Data<T>) -> bool {
         Arc::weak_count(strong) > 0
     }
 }
