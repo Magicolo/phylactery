@@ -7,36 +7,28 @@ on:
     branches: ["master"]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    container: 
-      image: ghcr.io/magicolo/rust
-    steps:
-    - uses: actions/checkout@v4
-    - run: |
-        cargo hack build --release --lib --bins --benches --tests --verbose --feature-powerset
-        cargo hack build --release --lib --bins --benches --tests --verbose --feature-powerset --rust-version
-        cargo hack build --release --examples --verbose
   test:
     runs-on: ubuntu-latest
     container: 
       image: ghcr.io/magicolo/rust
     steps:
     - uses: actions/checkout@v4
-    - run: |
-        cargo hack test --release --lib --bins --benches --tests --verbose --feature-powerset
-        cargo hack test --release --lib --bins --benches --tests --verbose --feature-powerset --rust-version
-        cargo hack test --release --doc --verbose --feature-powerset
-        cargo hack test --release --examples --verbose
+    - run: cargo hack nextest run --release --all-targets --verbose --feature-powerset
+    - run: cargo hack nextest run --release --all-targets --verbose --feature-powerset --rust-version
+  miri:
+    runs-on: ubuntu-latest
+    container: 
+      image: ghcr.io/magicolo/rust
+    steps:
+    - uses: actions/checkout@v4
+    - run: cargo +nightly miri nextest run --all-targets --all-features --verbose
   clippy:
     runs-on: ubuntu-latest
     container: 
       image: ghcr.io/magicolo/rust
     steps:
     - uses: actions/checkout@v4
-    - run: |
-        cargo hack clippy --release --lib --bins --benches --tests --verbose --feature-powerset -- --deny warnings
-        cargo hack clippy --release --examples --verbose -- --deny warnings
+    - run: cargo hack clippy --release --all-targets --verbose --feature-powerset -- --deny warnings
   doc:
     runs-on: ubuntu-latest
     container: 
@@ -57,18 +49,18 @@ jobs:
       image: ghcr.io/magicolo/rust
     steps:
     - uses: actions/checkout@v4
-    - run: cargo msrv verify
+    - run: cargo msrv verify --all-features
   audit:
     runs-on: ubuntu-latest
     container: 
       image: ghcr.io/magicolo/rust
     steps:
     - uses: actions/checkout@v4
-    - run: cargo audit
+    - run: cargo audit --deny warnings
   coverage:
     runs-on: ubuntu-latest
     container: 
       image: ghcr.io/magicolo/rust
     steps:
     - uses: actions/checkout@v4
-    - run: cargo llvm-cov --all-targets --all-features --release --locked --fail-under-regions 50 --verbose
+    - run: cargo llvm-cov --fail-under-regions 50 --all-features --all-targets --release --verbose

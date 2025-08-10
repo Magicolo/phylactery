@@ -1,5 +1,6 @@
 use core::ops::Deref;
 
+#[cfg(any(feature = "lock", feature = "cell"))]
 macro_rules! lock_cell {
     () => {
         #[test]
