@@ -199,9 +199,11 @@ pub mod thread_spawn_bridge {
 }
 
 fn main() {
+    #[cfg(feature = "cell")]
     scoped_static_logger::scope("some-prefix", &37, |value| {
         assert_eq!(*value, 37);
     });
+    #[cfg(feature = "lock")]
     thread_spawn_bridge::broadcast(
         available_parallelism().unwrap_or(NonZeroUsize::MIN),
         |index| println!("{index}"),
