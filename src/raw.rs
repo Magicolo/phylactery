@@ -88,8 +88,6 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (
 /// since this validation can not be guaranteed without incurring additional
 /// performance/memory costs, the burden is shifted to the caller.
 pub unsafe fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> RedeemResult<'a, T> {
-    // TODO: For a valid `Lich<T>`, this will always return `Ok(Some(sould))` and
-    // then panic when the soul is dropped.
     unsafe { crate::redeem(lich, soul, false) }
 }
 
