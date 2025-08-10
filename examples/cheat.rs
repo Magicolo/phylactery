@@ -1,13 +1,17 @@
-use core::{cell::Cell, fmt::Display, num::NonZeroUsize};
-use phylactery::shroud;
-use std::thread;
+use core::num::NonZeroUsize;
+use std::thread::available_parallelism;
 
+/// Have a thread local scoped logger available from anywhere that can borrow
+/// values that live on the stack.
 #[cfg(feature = "cell")]
 pub mod scoped_static_logger {
-    use super::*;
+    use core::{cell::Cell, fmt::Display};
     // Uses the `cell` variant; see `lock` for a thread-safe version or `raw` for a even more
     // lightweight version (with some additional safety burden).
-    use phylactery::cell::{Lich, redeem, ritual};
+    use phylactery::{
+        cell::{Lich, redeem, ritual},
+        shroud,
+    };
 
     pub trait Log {
         fn parent(&self) -> Option<&dyn Log>;
@@ -84,13 +88,15 @@ pub mod scoped_static_logger {
     }
 }
 
+/// Trivially reimplement `thread::scope` in a more powerful way.
 #[cfg(feature = "lock")]
 #[allow(clippy::manual_try_fold)]
 pub mod thread_spawn_bridge {
-    use super::*;
+    use core::num::NonZeroUsize;
     use phylactery::lock::{redeem, ritual};
+    use std::thread;
 
-    pub fn spawn<F: Fn(usize) + Send + Sync>(function: F, parallelism: NonZeroUsize) {
+    pub fn broadcast<F: Fn(usize) + Send + Sync>(parallelism: NonZeroUsize, function: F) {
         // `Shroud` is already implemented for all `Fn(..) -> T`, `FnMut(..) -> T` and
         // `FnOnce(..) -> T` with all of their `Send`, `Sync` and `Unpin` permutations.
         let (lich, soul) = ritual::<_, dyn Fn(usize) + Send + Sync>(&function);
@@ -116,15 +122,29 @@ pub mod thread_spawn_bridge {
             .collect::<Vec<_>>();
 
         // `redeem` all `Lich<T>`es with their `Soul<'a>`.
-        let soul = handles.into_iter().fold(Some(soul), |soul, handle| {
+        let soul = handles.into_iter().fold(soul, |soul, handle| {
             let lich = handle.join().expect("thread succeeded");
-            let soul = soul.expect("must be `Some` since some `Lich<T>` remain");
             // `redeem` will give back the `Soul<'a>` if more `Lich<T>` exist
-            redeem(lich, soul).expect("must be able to redeem")
+            redeem(lich, soul)
+                .expect("must be able to redeem")
+                .expect("must be `Some` since some `Lich<T>` remain")
         });
+
         // All `Lich<T>`es have been `redeem`ed, so the `Soul<'a>` must be `None`.
-        assert!(soul.is_none());
+        assert!(
+            redeem(lich, soul)
+                .expect("must be able to redeem")
+                .is_none()
+        );
     }
 }
 
-fn main() {}
+fn main() {
+    scoped_static_logger::scope("some-prefix", &37, |value| {
+        assert_eq!(*value, 37);
+    });
+    thread_spawn_bridge::broadcast(
+        available_parallelism().unwrap_or(NonZeroUsize::MIN),
+        |index| println!("{index}"),
+    );
+}
