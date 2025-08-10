@@ -203,3 +203,30 @@ compile_fail!(can_not_clone_soul, {
     let (lich, soul) = ritual::<_, dyn Fn()>(&function);
     soul.clone();
 });
+
+compile_fail!(can_not_send_cell_to_thread, {
+    use phylactery::cell::ritual;
+    use std::thread::spawn;
+
+    let function = || {};
+    let (lich, soul) = ritual::<_, dyn Fn() + Send + Sync>(&function);
+    spawn(move || lich);
+});
+
+compile_fail!(can_not_send_lock_unsync_to_thread, {
+    use phylactery::lock::ritual;
+    use std::thread::spawn;
+
+    let function = || {};
+    let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
+    spawn(move || lich);
+});
+
+compile_fail!(can_not_send_raw_unsync_to_thread, {
+    use phylactery::raw::ritual;
+    use std::thread::spawn;
+
+    let function = || {};
+    let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
+    spawn(move || lich);
+});
