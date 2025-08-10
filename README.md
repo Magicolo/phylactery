@@ -57,9 +57,6 @@ Different variants exist with different tradeoffs:
 ### Cheat Sheet
 
 ```rust
-use core::num::NonZeroUsize;
-use std::thread::available_parallelism;
-
 /// Have a thread local scoped logger available from anywhere that can borrow
 /// values that live on the stack.
 #[cfg(feature = "cell")]
@@ -203,9 +200,10 @@ fn main() {
     scoped_static_logger::scope("some-prefix", &37, |value| {
         assert_eq!(*value, 37);
     });
+
     #[cfg(feature = "lock")]
     thread_spawn_bridge::broadcast(
-        available_parallelism().unwrap_or(NonZeroUsize::MIN),
+        std::thread::available_parallelism().unwrap_or(core::num::NonZeroUsize::MIN),
         |index| println!("{index}"),
     );
 }
