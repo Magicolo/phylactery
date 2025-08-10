@@ -137,7 +137,7 @@ pub mod scoped_static_logger {
             // `Soul<'a>` be dropped would also work), `redeem` is the recommended
             // pattern to dispose of a `Lich<T>` and `Soul<'a>` pair since it is going to
             // work with all variants of `Lich<T>/Soul<'a>`.
-            redeem(lich, soul).expect("must be able to redeem");
+            redeem(lich, soul).ok().expect("must be able to redeem");
         }
         // Put back the old logger.
         LOGGER.set(parent);
@@ -182,6 +182,7 @@ pub mod thread_spawn_bridge {
             let lich = handle.join().expect("thread succeeded");
             // `redeem` will give back the `Soul<'a>` if more `Lich<T>` exist
             redeem(lich, soul)
+                .ok()
                 .expect("must be able to redeem")
                 .expect("must be `Some` since some `Lich<T>` remain")
         });
@@ -189,6 +190,7 @@ pub mod thread_spawn_bridge {
         // All `Lich<T>`es have been `redeem`ed, so the `Soul<'a>` must be `None`.
         assert!(
             redeem(lich, soul)
+                .ok()
                 .expect("must be able to redeem")
                 .is_none()
         );

@@ -7,7 +7,6 @@ pub struct Lock;
 pub type Soul<'a> = crate::Soul<'a, Lock>;
 pub type Lich<T> = crate::Lich<T, Lock>;
 pub type Guard<'a, T> = crate::Guard<'a, T, Lock>;
-pub type RedeemError<'a, T> = crate::RedeemError<'a, T, Lock>;
 pub type RedeemResult<'a, T> = crate::RedeemResult<'a, T, Lock>;
 
 unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where Arc<RwLock<Option<&'a T>>>: Send {}

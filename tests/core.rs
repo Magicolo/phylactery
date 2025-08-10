@@ -8,8 +8,8 @@ macro_rules! lock_cell {
             let function = || {};
             let (lich1, soul1) = ritual::<_, dyn Fn()>(&function);
             let (lich2, soul2) = ritual::<_, dyn Fn()>(&function);
-            let (lich1, soul2) = redeem(lich1, soul2).err().unwrap().into_inner();
-            let (lich2, soul1) = redeem(lich2, soul1).err().unwrap().into_inner();
+            let (lich1, soul2) = redeem(lich1, soul2).err().unwrap();
+            let (lich2, soul1) = redeem(lich2, soul1).err().unwrap();
             assert!(redeem(lich1, soul1).ok().flatten().is_none());
             assert!(redeem(lich2, soul2).ok().flatten().is_none());
         }
@@ -106,7 +106,7 @@ macro_rules! lock_cell {
 }
 
 macro_rules! lock_raw {
-    ([$($safe: ident)?] [$($unwrap: ident)?]) => {
+    ([$($safe: ident)?] [$($unwrap: ident)?] [$ok: expr]) => {
         #[test]
         fn can_send_to_thread() {
             let function = || 'a';
@@ -118,7 +118,7 @@ macro_rules! lock_raw {
             })
             .join()
             .unwrap();
-            assert!($($safe)? { redeem(lich, soul) }.ok().flatten().is_none());
+            assert!($ok($($safe)? { redeem(lich, soul) }));
         }
 
         #[test]
@@ -132,18 +132,18 @@ macro_rules! lock_raw {
                 'a'
             );
             let lich = LICH.lock().unwrap().take().unwrap();
-            assert!($($safe)? { redeem(lich, soul) }.ok().flatten().is_none());
+            assert!($ok($($safe)? { redeem(lich, soul) }));
         }
     };
 }
 
 macro_rules! lock_cell_raw {
-    ([$($safe: ident)?] [$($unwrap: ident)?]) => {
+    ([$($safe: ident)?] [$($unwrap: ident)?] [$ok: expr]) => {
         #[test]
         fn redeem_succeeds_with_none() {
             let function = || {};
             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-            assert!($($safe)? { redeem(lich, soul) }.ok().flatten().is_none());
+            assert!($ok($($safe)? { redeem(lich, soul) }));
         }
 
         #[test]
@@ -154,9 +154,9 @@ macro_rules! lock_cell_raw {
                 let guard = $($safe)? { lich1.borrow() }$(.$unwrap())?;
                 let (lich2, soul2) = ritual::<_, dyn Fn() -> char>(guard.deref());
                 assert_eq!($($safe)? { lich2.borrow() }$(.$unwrap())?(), 'a');
-                assert!($($safe)? { redeem(lich2, soul2) }.ok().flatten().is_none());
+                assert!($ok($($safe)? { redeem(lich2, soul2) }));
             }
-            assert!($($safe)? { redeem(lich1, soul1) }.ok().flatten().is_none());
+            assert!($ok($($safe)? { redeem(lich1, soul1) }));
         }
 
         #[test]
@@ -165,7 +165,7 @@ macro_rules! lock_cell_raw {
             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
             assert!(lich.is_bound());
             assert!(soul.is_bound());
-            assert!($($safe)? { redeem(lich, soul) }.ok().flatten().is_none());
+            assert!($ok($($safe)? { redeem(lich, soul) }));
         }
     };
 }
@@ -173,21 +173,21 @@ macro_rules! lock_cell_raw {
 #[cfg(feature = "lock")]
 mod lock {
     use super::*;
-    use phylactery::lock::{Lich, redeem, ritual};
+    use phylactery::lock::{Lich, RedeemResult, redeem, ritual};
     use std::{sync::Mutex, thread::spawn};
 
-    lock_cell_raw!([][unwrap]);
+    lock_cell_raw!([][unwrap][|result: RedeemResult<_>| result.ok().flatten().is_none()]);
     lock_cell!();
-    lock_raw!([][unwrap]);
+    lock_raw!([][unwrap][|result: RedeemResult<_>| result.ok().flatten().is_none()]);
 }
 
 #[cfg(feature = "cell")]
 mod cell {
     use super::*;
     use core::cell::RefCell;
-    use phylactery::cell::{Lich, redeem, ritual};
+    use phylactery::cell::{Lich, RedeemResult, redeem, ritual};
 
-    lock_cell_raw!([][unwrap]);
+    lock_cell_raw!([][unwrap][|result: RedeemResult<_>| result.ok().flatten().is_none()]);
     lock_cell!();
 
     #[test]
@@ -219,11 +219,11 @@ mod cell {
 
 mod raw {
     use super::*;
-    use phylactery::raw::{Lich, redeem, ritual};
+    use phylactery::raw::{Lich, RedeemResult, redeem, ritual};
     use std::{sync::Mutex, thread::spawn};
 
-    lock_cell_raw!([unsafe] []);
-    lock_raw!([unsafe][]);
+    lock_cell_raw!([unsafe][][|result: RedeemResult<_>| result.is_ok()]);
+    lock_raw!([unsafe][][|result: RedeemResult<_>| result.is_ok()]);
 
     #[test]
     fn redeem_succeeds_with_mixed() {
@@ -232,8 +232,8 @@ mod raw {
         let function = || {};
         let (lich1, soul1) = ritual::<_, dyn Fn()>(&function);
         let (lich2, soul2) = ritual::<_, dyn Fn()>(&function);
-        assert!(unsafe { redeem(lich1, soul2) }.ok().flatten().is_none());
-        assert!(unsafe { redeem(lich2, soul1) }.ok().flatten().is_none());
+        assert!(unsafe { redeem(lich1, soul2) }.is_ok());
+        assert!(unsafe { redeem(lich2, soul1) }.is_ok());
     }
 
     #[test]
@@ -280,6 +280,6 @@ mod raw {
         let lich = lich.try_sever().unwrap_err();
         let soul = soul.try_sever().unwrap_err();
         let soul = soul.try_sever().unwrap_err();
-        assert!(unsafe { redeem(lich, soul) }.ok().flatten().is_none());
+        assert!(unsafe { redeem(lich, soul) }.is_ok());
     }
 }

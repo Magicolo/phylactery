@@ -9,8 +9,7 @@ pub struct Raw;
 pub type Soul<'a> = crate::Soul<'a, Raw>;
 pub type Lich<T> = crate::Lich<T, Raw>;
 pub type Guard<'a, T> = crate::Guard<'a, T, Raw>;
-pub type RedeemError<'a, T> = crate::RedeemError<'a, T, Raw>;
-pub type RedeemResult<'a, T> = crate::RedeemResult<'a, T, Raw>;
+pub type RedeemResult<'a, T> = Result<(), (Lich<T>, Soul<'a>)>;
 
 unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where &'a T: Send {}
 unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where &'a T: Sync {}
@@ -87,8 +86,14 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (
 /// do a pointer comparison to validate whether the two are bound together but
 /// since this validation can not be guaranteed without incurring additional
 /// performance/memory costs, the burden is shifted to the caller.
+///
+/// Returns `Ok(())` if the [`Lich<T>`] and [`Soul<'a>`] were bound together and
+/// redeemed, otherwise `Err(RedeemError(lich, soul))`. If the [`RedeemError`]
+/// is not handled by properly [`redeem`]ing the [`Lich<T>`] and the
+/// [`Soul<'a>`] contained in it, they will panic on drop. See
+/// [`RedeemError::into_inner`].
 pub unsafe fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> RedeemResult<'a, T> {
-    unsafe { crate::redeem(lich, soul, false) }
+    unsafe { crate::redeem(lich, soul, false).map(|_| {}) }
 }
 
 fn sever_panic() -> bool {

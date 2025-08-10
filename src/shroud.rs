@@ -35,6 +35,8 @@ macro_rules! shroud {
         impl<$($generic,)*> $crate::shroud::Shroud<dyn $type<$($generic),*> $(+ $trait)*> for dyn $type<$($generic),*> $(+ $trait)* {
             #[inline(always)]
             fn shroud(from: &(dyn $type<$($generic),*> $(+ $trait)*)) -> ::core::ptr::NonNull<Self> {
+                // # Safety
+                // The pointer is trivially non-null as per rust's reference guarantees.
                 unsafe { ::core::ptr::NonNull::new_unchecked(from as *const _ as *const Self as *mut _) }
             }
         }

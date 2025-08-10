@@ -22,4 +22,3 @@ cell = ["std"]
 lock = ["std"]
 
 [dependencies]
-rustversion = "1.0.22"

@@ -10,8 +10,6 @@ pub mod shroud;
 
 use crate::shroud::Shroud;
 use core::{
-    any::type_name,
-    fmt,
     mem::ManuallyDrop,
     ops::Deref,
     ptr::{NonNull, drop_in_place},
@@ -37,8 +35,7 @@ pub trait Bind {
 pub struct Soul<'a, B: Bind + ?Sized>(pub(crate) B::Life<'a>);
 pub struct Lich<T: ?Sized, B: Bind + ?Sized>(pub(crate) B::Data<T>);
 pub struct Guard<'a, T: ?Sized + 'a, B: Bind + ?Sized>(pub(crate) B::Refer<'a, T>);
-pub struct RedeemError<'a, T: ?Sized, B: Bind + ?Sized>(Lich<T, B>, Soul<'a, B>);
-pub type RedeemResult<'a, T, B> = Result<Option<Soul<'a, B>>, RedeemError<'a, T, B>>;
+pub type RedeemResult<'a, T, B> = Result<Option<Soul<'a, B>>, (Lich<T, B>, Soul<'a, B>)>;
 
 pub trait Sever {
     fn sever(&mut self) -> bool;
@@ -127,36 +124,6 @@ impl<'a, T: ?Sized, B: Bind<Refer<'a, T>: AsRef<Option<NonNull<T>>>> + ?Sized> A
     }
 }
 
-impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> fmt::Debug for RedeemError<'a, T, B> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "failed to redeem `Lich<{}, {}>` and `Soul<'a, {}>` pair",
-            type_name::<T>(),
-            type_name::<B>(),
-            type_name::<B>(),
-        )
-    }
-}
-
-impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> fmt::Display for RedeemError<'a, T, B> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(self, f)
-    }
-}
-
-#[rustversion::since(1.81)]
-impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> core::error::Error for RedeemError<'a, T, B> {}
-#[rustversion::before(1.81)]
-#[cfg(feature = "std")]
-impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> std::error::Error for RedeemError<'a, T, B> {}
-
-impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> RedeemError<'a, T, B> {
-    pub fn into_inner(self) -> (Lich<T, B>, Soul<'a, B>) {
-        (self.0, self.1)
-    }
-}
-
 fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a, B: Bind + ?Sized>(
     value: &'a T,
 ) -> (Lich<S, B>, Soul<'a, B>) {
@@ -180,75 +147,77 @@ unsafe fn redeem<'a, T: ?Sized + 'a, B: Bind + ?Sized>(
             Ok(None)
         }
     } else {
-        Err(RedeemError(lich, soul))
+        Err((lich, soul))
     }
 }
 
-macro_rules! compile_fail {
-    ($function: ident, $block: block) => {
-        #[allow(dead_code)]
-        #[doc = concat!("```compile_fail\n", stringify!($block), "\n```")]
-        const fn $function() {}
-    };
+#[allow(dead_code)]
+mod fail {
+    macro_rules! fail {
+        ($function: ident, $block: block) => {
+            #[doc = concat!("```compile_fail\n", stringify!($block), "\n```")]
+            const fn $function() {}
+        };
+    }
+
+    fail!(can_not_mutate_while_soul_lives, {
+        use phylactery::raw::ritual;
+
+        let mut value = 'a';
+        let mut function = |letter| value = letter;
+        let (lich, soul) = ritual::<_, dyn FnMut(char)>(&function);
+        function('b');
+    });
+
+    fail!(can_not_drop_while_soul_lives, {
+        use phylactery::raw::ritual;
+
+        let mut value = 'a';
+        let mut function = |letter| value = letter;
+        let (lich, soul) = ritual::<_, dyn FnMut(char)>(&function);
+        drop(function);
+    });
+
+    fail!(can_not_clone_lich, {
+        use phylactery::raw::ritual;
+
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        lich.clone();
+    });
+
+    fail!(can_not_clone_soul, {
+        use phylactery::raw::ritual;
+
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        soul.clone();
+    });
+
+    fail!(can_not_send_cell_to_thread, {
+        use phylactery::cell::ritual;
+        use std::thread::spawn;
+
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn() + Send + Sync>(&function);
+        spawn(move || lich);
+    });
+
+    fail!(can_not_send_lock_unsync_to_thread, {
+        use phylactery::lock::ritual;
+        use std::thread::spawn;
+
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
+        spawn(move || lich);
+    });
+
+    fail!(can_not_send_raw_unsync_to_thread, {
+        use phylactery::raw::ritual;
+        use std::thread::spawn;
+
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
+        spawn(move || lich);
+    });
 }
-
-compile_fail!(can_not_mutate_while_soul_lives, {
-    use phylactery::raw::ritual;
-
-    let mut value = 'a';
-    let mut function = |letter| value = letter;
-    let (lich, soul) = ritual::<_, dyn FnMut(char)>(&function);
-    function('b');
-});
-
-compile_fail!(can_not_drop_while_soul_lives, {
-    use phylactery::raw::ritual;
-
-    let mut value = 'a';
-    let mut function = |letter| value = letter;
-    let (lich, soul) = ritual::<_, dyn FnMut(char)>(&function);
-    drop(function);
-});
-
-compile_fail!(can_not_clone_lich, {
-    use phylactery::raw::ritual;
-
-    let function = || {};
-    let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-    lich.clone();
-});
-
-compile_fail!(can_not_clone_soul, {
-    use phylactery::raw::ritual;
-
-    let function = || {};
-    let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-    soul.clone();
-});
-
-compile_fail!(can_not_send_cell_to_thread, {
-    use phylactery::cell::ritual;
-    use std::thread::spawn;
-
-    let function = || {};
-    let (lich, soul) = ritual::<_, dyn Fn() + Send + Sync>(&function);
-    spawn(move || lich);
-});
-
-compile_fail!(can_not_send_lock_unsync_to_thread, {
-    use phylactery::lock::ritual;
-    use std::thread::spawn;
-
-    let function = || {};
-    let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
-    spawn(move || lich);
-});
-
-compile_fail!(can_not_send_raw_unsync_to_thread, {
-    use phylactery::raw::ritual;
-    use std::thread::spawn;
-
-    let function = || {};
-    let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
-    spawn(move || lich);
-});
