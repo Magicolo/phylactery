@@ -1,12 +1,3 @@
-/*!
-# Phylactery
-
-This library offers a safe wrapper around lifetime extension shenanigans by splitting a `&'a T` into a
-`Lich<dyn T + 'b>` (`'b` can be any chosen lifetime) and a `Soul<'a>` which tracks the original lifetime. On
-drop of the `Soul` or on calling `Soul::sever`, it is guaranteed that the captured reference is also dropped, thus
-inaccessible from a remaining `Lich`.
-!*/
-
 #[cfg(feature = "cell")]
 pub mod cell;
 #[cfg(feature = "lock")]
@@ -63,9 +54,11 @@ pub trait Bind {
     type Strong<T: ?Sized>: Sever;
     type Refer<'a, T: ?Sized + 'a>;
 
+    /// Splits the provided reference into its data part `Self::Strong<T>` and its lifetime part `Self::Weak<'a>`, binding them together.
     fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
         value: &'a T,
     ) -> (Self::Strong<S>, Self::Weak<'a>);
+    /// Checks whether the `Self::Strong<T>` and `Self::Weak<'a>` have been bound together with the same `Self::bind` call.
     fn are_bound<T: ?Sized>(strong: &Self::Strong<T>, weak: &Self::Weak<'_>) -> bool;
     fn is_bound_weak(weak: &Self::Weak<'_>) -> bool;
     fn is_bound_strong<T: ?Sized>(strong: &Self::Strong<T>) -> bool;
