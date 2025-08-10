@@ -1,6 +1,6 @@
 [package]
 name = "phylactery"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 authors = ["Magicolo <magicololand@gmail.com>"]
 readme = "README.md"
