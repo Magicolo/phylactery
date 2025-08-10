@@ -3,6 +3,7 @@ use core::{
     marker::PhantomData,
     ptr::{self, NonNull},
 };
+use std::thread;
 
 pub struct Raw;
 
@@ -18,7 +19,11 @@ pub struct Life<'a>(NonNull<()>, PhantomData<&'a ()>);
 
 impl<T: ?Sized> Sever for Data<T> {
     fn sever(&mut self) -> bool {
-        panic!("this `Raw` order `Lich<T>` must be redeemed")
+        if thread::panicking() {
+            false
+        } else {
+            panic!("this `Raw` order `Lich<T>` must be redeemed")
+        }
     }
 
     fn try_sever(&mut self) -> Option<bool> {
@@ -28,7 +33,11 @@ impl<T: ?Sized> Sever for Data<T> {
 
 impl Sever for Life<'_> {
     fn sever(&mut self) -> bool {
-        panic!("this `Raw` order `Lich<T>` must be redeemed")
+        if thread::panicking() {
+            false
+        } else {
+            panic!("this `Raw` order `Lich<T>` must be redeemed")
+        }
     }
 
     fn try_sever(&mut self) -> Option<bool> {
