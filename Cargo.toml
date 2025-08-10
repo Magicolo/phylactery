@@ -8,8 +8,8 @@ documentation = "https://docs.rs/phylactery/latest/checkito/"
 description = "Safe and thin wrappers around lifetime extension. Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dyn Trait + 'static>` and a `Soul<'a>` pair such that the `dyn Trait` can cross `'static` boundaries while tracking the lifetime `'a`."
 license = "MIT"
 repository = "https://github.com/Magicolo/phylactery"
-keywords = []
-categories = []
+keywords = ["unsafe", "lifetime", "scope", "extension", "static"]
+categories = ["concurrency", "no-std", "data-structures", "memory-management"]
 rust-version = "1.79"
 
 [badges]
