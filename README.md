@@ -14,8 +14,8 @@ Safe and thin wrappers around lifetime extension. Given a trait `Trait` and a `T
 ---
 ### In Brief
 
-The general usafe pattern of this library is:
-- Choose a `Lich<T>/Soul<'a>` variant for you use case (see below for the tradeoffs).
+The general usage pattern of this library is:
+- Choose a `Lich<T>/Soul<'a>` variant for your use-case (see below for the tradeoffs).
 - Implement `Shroud` for the trait for which you want to extend the lifetime (a simple call to `shroud!(Trait)` is often all it takes).
 - Use the corresponding `ritual::<T: Trait, dyn Trait>(value: &'a T)` to produce a `Lich<dyn Trait + 'static>` bound to a `Soul<'a>`.
 - Use the `Lich<dyn Trait>` as a `'static` reference to your otherwise non-static `&'a T`.
