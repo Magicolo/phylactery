@@ -2,10 +2,7 @@
 
 <p align="center">
     <em> 
-
-Safe wrappers around lifetime extension by splitting a `&'a T` into a `Lich<dyn T + 'b>` (`'b` can be any chosen lifetime) and a `Soul<'a>` which tracks the original lifetime.
-On drop of the `Soul<'a>` or on calling `Soul::sever`, it is guaranteed that the captured reference is also dropped, thus
-inaccessible from a remaining `Lich<T>`.
+Safe and thin wrappers around lifetime extension. Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dyn Trait + 'static>` and a `Soul<'a>` pair such that the `dyn Trait` can cross `'static` boundaries while tracking the lifetime `'a`.
     </em>
 </p>
 
@@ -13,3 +10,190 @@ inaccessible from a remaining `Lich<T>`.
     <a href="https://github.com/Magicolo/phylactery/actions/workflows/test.yml"> <img src="https://github.com/Magicolo/phylactery/actions/workflows/test.yml/badge.svg"> </a>
     <a href="https://crates.io/crates/phylactery"> <img src="https://img.shields.io/crates/v/phylactery.svg"> </a>
 </div>
+---
+
+### In Brief
+
+The general usafe pattern of this library is:
+- choose a `Lich<T>/Soul<'a>` variant for you use case
+- implement `Shroud` for the trait that you want to extend its lifetime (a simple call to `shroud!(Trait)` is often all it takes)
+- use the corresponding `ritual::<T: Trait, dyn Trait>(value: &'a T)` to produce a `Lich<dyn Trait + 'static>` bound to a `Soul<'a>`
+- use the `Lich<dyn Trait>` as a `'static` reference to your otherwise non-static `&'a T`
+- use the corresponding `redeem(Lich<T>, Soul<'a>)` to guarantee that all references to `&'a T` are dropped before the end of lifetime `'a`
+
+When `Soul<'a>` is dropped or when calling `Soul::sever`, it is guaranteed that the captured reference is also dropped, thus
+inaccessible from a remaining `Lich<T>`.
+
+Different variants exist with different tradeoffs:
+- `phylactery::raw: 
+    - is as lightweight as a new type around a pointer (no allocation)
+    - does require the `Lich<T>` to be `redeem`ed (otherwise, `Lich<T>` and `Soul<'a>` **will** panic on drop)
+    - does require some `unsafe` calls
+    - `Lich<T>` can **not** be cloned
+    - can be sent to other threads
+- `phylactery::cell`: 
+    - adds an indirection and minimal overhead using `Rc<RefCell>`
+    - allows for the use of the `Lich<T>/Soul<'a>::sever` methods
+    - if a borrow still exists when the `Soul<'a>` is dropped, the thread will panic
+    - does **not** require the `Lich<T>`es to be `redeem`ed (although it is considered good practice to do so)
+    - does **not** require `unsafe` calls
+    - `Lich<T>` can be cloned
+    - can **not** be sent to other threads
+- `phylactery::lock`:
+    - adds an indirection and *some* overhead using `Arc<RwLock>`
+    - allows for the use of the `Lich<T>/Soul<'a>::sever` methods
+    - if a borrow still exists when the `Soul<'a>` is dropped, the thread will block until the borrow expires (which can lead to dead locks)
+    - does **not** require the `Lich<T>` to be `redeem`ed (although it is considered good practice to do so)
+    - does **not** require `unsafe` calls
+    - `Lich<T>` can be cloned
+    - can be sent to other threads
+    
+
+*Since this library makes use of some `unsafe` code, all tests are run with `miri` to try to catch any unsoundness.*
+
+---
+### Cheat Sheet
+
+```rust
+use core::{cell::Cell, fmt::Display, num::NonZeroUsize};
+use phylactery::shroud;
+use std::thread;
+
+#[cfg(feature = "cell")]
+pub mod scoped_static_logger {
+    use super::*;
+    // Uses the `cell` variant; see `lock` for a thread-safe version or `raw` for a even more
+    // lightweight version (with some additional safety burden).
+    use phylactery::cell::{Lich, redeem, ritual};
+
+    pub trait Log {
+        fn parent(&self) -> Option<&dyn Log>;
+        fn prefix(&self) -> &str;
+        fn format(&self) -> &str;
+        fn arguments(&self) -> &[&dyn Display];
+    }
+
+    pub struct Logger<'a> {
+        parent: Option<&'a dyn Log>,
+        prefix: &'a str,
+        format: &'a str,
+        arguments: &'a [&'a dyn Display],
+    }
+
+    impl Log for Logger<'_> {
+        fn parent(&self) -> Option<&dyn Log> {
+            self.parent
+        }
+
+        fn prefix(&self) -> &str {
+            self.prefix
+        }
+
+        fn format(&self) -> &str {
+            self.format
+        }
+
+        fn arguments(&self) -> &[&dyn Display] {
+            self.arguments
+        }
+    }
+
+    // Use the convenience macro to automatically implement the required `Shroud`
+    // trait for all `T: Log`.
+    shroud!(Log);
+
+    // This thread local storage allows preserve this thread's call stack while
+    // being able to log from anywhere without the need to pass a logger around.
+    //
+    // Note that the `Lich<dyn Log>` has the `'static` lifetime.
+    thread_local! {
+        static LOGGER: Cell<Option<Lich<dyn Log>>> = const { Cell::new(None) };
+    }
+
+    pub fn scope<T: Display, F: FnOnce(&T)>(prefix: &str, argument: &T, function: F) {
+        let parent = LOGGER.take();
+        {
+            // `Lich::borrow` can fail if the binding between it and its `Soul<'a>` has been
+            // severed.
+            let guard = parent.as_ref().and_then(Lich::borrow);
+            // This `Logger` captures some references that live on the stack.
+            let logger = Logger {
+                parent: guard.as_deref(),
+                prefix,
+                format: "({})",
+                arguments: &[argument],
+            };
+            // `ritual` produces a `Lich<dyn Log + 'static>` and `Soul<'a>` pair.
+            let (lich, soul) = ritual::<_, dyn Log + 'static>(&logger);
+            // Push this logger as the current scope.
+            LOGGER.set(Some(lich));
+            function(argument);
+            // Pop the logger.
+            let lich = LOGGER.take().expect("must get back our logger");
+            // Although not strictly required in this case (letting the `Lich<T>` and
+            // `Soul<'a>` be dropped would also work), `redeem` is the recommended
+            // pattern to dispose of a `Lich<T>` and `Soul<'a>` pair since it is going to
+            // work with all variants of `Lich<T>/Soul<'a>`.
+            redeem(lich, soul).expect("must be able to redeem");
+        }
+        // Put back the old logger.
+        LOGGER.set(parent);
+    }
+}
+
+#[cfg(feature = "lock")]
+#[allow(clippy::manual_try_fold)]
+pub mod thread_spawn_bridge {
+    use super::*;
+    use phylactery::lock::{redeem, ritual};
+
+    pub fn spawn<F: Fn(usize) + Send + Sync>(function: F, parallelism: NonZeroUsize) {
+        // `Shroud` is already implemented for all `Fn(..) -> T`, `FnMut(..) -> T` and
+        // `FnOnce(..) -> T` with all of their `Send`, `Sync` and `Unpin` permutations.
+        let (lich, soul) = ritual::<_, dyn Fn(usize) + Send + Sync>(&function);
+        // Spawn a bunch of threads that will all call `F` and collect their
+        // `JoinHandle`.
+        let handles = (0..parallelism.get())
+            .map(|index| {
+                let lich = lich.clone();
+                // The non-static function `F` will cross a `'static` boundary wrapped within
+                // the `Lich<T>`.
+                thread::spawn(move || {
+                    let lich = lich;
+                    {
+                        let guard = lich
+                            .borrow()
+                            .expect("since the `Soul<'a>` still lives, this must succeed");
+                        // Call the non-static function.
+                        guard(index);
+                    }
+                    lich
+                })
+            })
+            .collect::<Vec<_>>();
+
+        // `redeem` all `Lich<T>`es with their `Soul<'a>`.
+        let soul = handles.into_iter().fold(Some(soul), |soul, handle| {
+            let lich = handle.join().expect("thread succeeded");
+            let soul = soul.expect("must be `Some` since some `Lich<T>` remain");
+            // `redeem` will give back the `Soul<'a>` if more `Lich<T>` exist
+            redeem(lich, soul).expect("must be able to redeem")
+        });
+        // All `Lich<T>`es have been `redeem`ed, so the `Soul<'a>` must be `None`.
+        assert!(soul.is_none());
+    }
+}
+
+fn main() {}
+
+```
+
+_See the [examples](examples/) and [tests](tests/) folder for more detailed examples._
+
+---
+### Contribute
+- If you find a bug or have a feature request, please open an [issues](https://github.com/Magicolo/phylactery/issues).
+- `phylactery` is actively maintained and [pull requests](https://github.com/Magicolo/phylactery/pulls) are welcome.
+- If `phylactery` was useful to you, please consider leaving a [star](https://github.com/Magicolo/phylactery)!
+
+---
