@@ -1,12 +1,5 @@
 #![doc = include_str!("../README.md")]
-/*!
-# Phylactery
-
-This library offers a safe wrapper around lifetime extension shenanigans by splitting a `&'a T` into a
-`Lich<dyn T + 'b>` (`'b` can be any chosen lifetime) and a `Soul<'a>` which tracks the original lifetime. On
-drop of the `Soul` or on calling `Soul::sever`, it is guaranteed that the captured reference is also dropped, thus
-inaccessible from a remaining `Lich`.
-!*/
+#![cfg_attr(not(any(feature = "cell", feature = "lock")), no_std)]
 
 #[cfg(feature = "cell")]
 pub mod cell;

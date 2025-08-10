@@ -3,7 +3,6 @@ use core::{
     marker::PhantomData,
     ptr::{self, NonNull},
 };
-use std::thread;
 
 pub struct Raw;
 
@@ -21,11 +20,7 @@ pub struct Life<'a>(NonNull<()>, PhantomData<&'a ()>);
 
 impl<T: ?Sized> Sever for Data<T> {
     fn sever(&mut self) -> bool {
-        if thread::panicking() {
-            false
-        } else {
-            panic!("this `Raw` order `Lich<T>` must be redeemed")
-        }
+        try_panic()
     }
 
     fn try_sever(&mut self) -> Option<bool> {
@@ -35,11 +30,7 @@ impl<T: ?Sized> Sever for Data<T> {
 
 impl Sever for Life<'_> {
     fn sever(&mut self) -> bool {
-        if thread::panicking() {
-            false
-        } else {
-            panic!("this `Raw` order `Lich<T>` must be redeemed")
-        }
+        try_panic()
     }
 
     fn try_sever(&mut self) -> Option<bool> {
@@ -100,4 +91,12 @@ pub unsafe fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> Redee
     // TODO: For a valid `Lich<T>`, this will always return `Ok(Some(sould))` and
     // then panic when the soul is dropped.
     unsafe { crate::redeem(lich, soul) }
+}
+
+fn try_panic() -> bool {
+    #[cfg(any(feature = "lock", feature = "cell"))]
+    if std::thread::panicking() {
+        return false;
+    }
+    panic!("this `Raw` order `Lich<T>` must be redeemed")
 }
