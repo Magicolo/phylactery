@@ -205,6 +205,16 @@ mod cell {
         let lich = LICH.with_borrow_mut(|slot| slot.take()).unwrap();
         assert!(redeem(lich, soul).ok().flatten().is_none());
     }
+
+    #[test]
+    #[should_panic]
+    fn panics_if_soul_is_dropped_while_borrow_lives() {
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        let guard = lich.borrow().unwrap();
+        drop(soul);
+        drop(guard);
+    }
 }
 
 mod raw {
