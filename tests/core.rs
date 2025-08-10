@@ -70,6 +70,19 @@ macro_rules! lock_cell {
             let soul = redeem(lich1, soul).ok().flatten().unwrap();
             assert!(redeem(lich2, soul).ok().flatten().is_none());
         }
+
+        #[test]
+        fn can_redeem_in_any_order() {
+            let function = || {};
+            let (lich1, soul) = ritual::<_, dyn Fn()>(&function);
+            let lich2 = lich1.clone();
+            let lich3 = lich2.clone();
+            let lich4 = lich1.clone();
+            let soul = redeem(lich2, soul).ok().flatten().unwrap();
+            let soul = redeem(lich3, soul).ok().flatten().unwrap();
+            let soul = redeem(lich1, soul).ok().flatten().unwrap();
+            assert!(redeem(lich4, soul).ok().flatten().is_none());
+        }
     };
 }
 
