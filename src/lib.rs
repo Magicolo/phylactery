@@ -188,6 +188,24 @@ macro_rules! compile_fail {
     };
 }
 
+compile_fail!(can_not_mutate_while_soul_lives, {
+    use phylactery::raw::ritual;
+
+    let mut value = 'a';
+    let mut function = |letter| value = letter;
+    let (lich, soul) = ritual::<_, dyn FnMut(char)>(&function);
+    function('b');
+});
+
+compile_fail!(can_not_drop_while_soul_lives, {
+    use phylactery::raw::ritual;
+
+    let mut value = 'a';
+    let mut function = |letter| value = letter;
+    let (lich, soul) = ritual::<_, dyn FnMut(char)>(&function);
+    drop(function);
+});
+
 compile_fail!(can_not_clone_lich, {
     use phylactery::raw::ritual;
 

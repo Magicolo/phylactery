@@ -63,6 +63,25 @@ macro_rules! lock_cell {
         }
 
         #[test]
+        fn can_not_borrow_after_lich_sever() {
+            let function = || {};
+            let (lich1, soul) = ritual::<_, dyn Fn()>(&function);
+            let lich2 = lich1.clone();
+            assert!(lich1.sever());
+            assert!(lich2.borrow().is_none());
+            assert!(redeem(lich2, soul).ok().flatten().is_none());
+        }
+
+        #[test]
+        fn can_not_borrow_after_soul_sever() {
+            let function = || {};
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            assert!(soul.sever());
+            assert!(lich.borrow().is_none());
+            assert!(!lich.sever());
+        }
+
+        #[test]
         fn can_clone_lich() {
             let function = || {};
             let (lich1, soul) = ritual::<_, dyn Fn()>(&function);
