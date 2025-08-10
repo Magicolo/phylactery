@@ -63,4 +63,4 @@ jobs:
       image: ghcr.io/magicolo/rust
     steps:
     - uses: actions/checkout@v4
-    - run: cargo llvm-cov --fail-under-regions 50 --all-features --all-targets --release --verbose
+    - run: cargo llvm-cov --fail-under-regions 75 --all-features --all-targets --release --verbose
