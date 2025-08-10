@@ -14,7 +14,7 @@ use core::{
     fmt,
     mem::ManuallyDrop,
     ops::Deref,
-    ptr::{self, NonNull},
+    ptr::{NonNull, drop_in_place},
 };
 
 pub trait Bind {
@@ -111,6 +111,10 @@ impl<'a, T: ?Sized, B: Bind<Refer<'a, T>: Deref<Target = Option<NonNull<T>>>> + 
 
     #[inline]
     fn deref(&self) -> &Self::Target {
+        // # Safety
+        // The `Option<NonNull<T>>` can only be `Some` as per the check in
+        // `Lich<T>::borrow` and could not have been swapped for `None` since it is
+        // protected by its corresponding `B::Refer` guard.
         unsafe { self.0.deref().as_ref().unwrap_unchecked().as_ref() }
     }
 }
@@ -166,13 +170,13 @@ unsafe fn redeem<'a, T: ?Sized + 'a, B: Bind + ?Sized>(
     bound: bool,
 ) -> RedeemResult<'a, T, B> {
     if B::are_bound(&lich.0, &soul.0) {
-        let lich = ManuallyDrop::new(lich);
-        drop(unsafe { ptr::read(&lich.0) });
+        let mut lich = ManuallyDrop::new(lich);
+        unsafe { drop_in_place(&mut lich.0) };
         if bound && B::is_life_bound(&soul.0) {
             Ok(Some(soul))
         } else {
-            let soul = ManuallyDrop::new(soul);
-            unsafe { ptr::read(&soul.0) };
+            let mut soul = ManuallyDrop::new(soul);
+            unsafe { drop_in_place(&mut soul.0) };
             Ok(None)
         }
     } else {
