@@ -1,5 +1,13 @@
 use core::ops::Deref;
 
+macro_rules! compile_fail {
+    ($function: ident, $block: block) => {
+        #[allow(dead_code)]
+        #[doc = concat!("```compile_fail\n", stringify!($block), "\n```")]
+        fn $function() {}
+    };
+}
+
 #[cfg(any(feature = "lock", feature = "cell"))]
 macro_rules! lock_cell {
     () => {
@@ -231,4 +239,16 @@ mod raw {
         let soul = soul.try_sever().unwrap_err();
         assert!(unsafe { redeem(lich, soul) }.ok().flatten().is_none());
     }
+
+    compile_fail!(can_not_clone_lich, {
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        lich.clone();
+    });
+
+    compile_fail!(can_not_clone_soul, {
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        soul.clone();
+    });
 }

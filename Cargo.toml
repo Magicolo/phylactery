@@ -10,14 +10,16 @@ license = "MIT"
 repository = "https://github.com/Magicolo/phylactery"
 keywords = []
 categories = []
-rust-version = "1.79.0"
+rust-version = "1.79"
 
 [badges]
 github = { repository = "Magicolo/phylactery", workflow = "test" }
 
 [features]
 default = ["cell", "lock"]
-cell = []
-lock = []
+std = []
+cell = ["std"]
+lock = ["std"]
 
 [dependencies]
+rustversion = "1.0.22"

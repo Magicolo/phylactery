@@ -1,5 +1,5 @@
 #![doc = include_str!("../README.md")]
-#![cfg_attr(not(any(feature = "cell", feature = "lock")), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "cell")]
 pub mod cell;
@@ -34,7 +34,6 @@ TODO:
 use crate::shroud::Shroud;
 use core::{
     any::type_name,
-    error::Error,
     fmt,
     mem::ManuallyDrop,
     ops::Deref,
@@ -172,7 +171,11 @@ impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> fmt::Display for RedeemError<'a, T, B
     }
 }
 
-impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> Error for RedeemError<'a, T, B> {}
+#[rustversion::since(1.81)]
+impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> core::error::Error for RedeemError<'a, T, B> {}
+#[rustversion::before(1.81)]
+#[cfg(feature = "std")]
+impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> std::error::Error for RedeemError<'a, T, B> {}
 
 impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> RedeemError<'a, T, B> {
     pub fn into_inner(self) -> (Lich<T, B>, Soul<'a, B>) {

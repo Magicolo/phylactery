@@ -94,9 +94,20 @@ pub unsafe fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> Redee
 }
 
 fn try_panic() -> bool {
-    #[cfg(any(feature = "lock", feature = "cell"))]
+    #[cfg(feature = "std")]
     if std::thread::panicking() {
         return false;
     }
+
+    #[cfg(not(feature = "std"))]
+    {
+        use core::sync::atomic::{AtomicBool, Ordering};
+
+        static PANIC: AtomicBool = AtomicBool::new(false);
+        if PANIC.swap(true, Ordering::Relaxed) {
+            return false;
+        }
+    }
+
     panic!("this `Raw` order `Lich<T>` must be redeemed")
 }
