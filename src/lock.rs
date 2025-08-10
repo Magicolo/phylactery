@@ -7,6 +7,8 @@ pub struct Lock;
 pub type Soul<'a> = crate::Soul<'a, Lock>;
 pub type Lich<T> = crate::Lich<T, Lock>;
 pub type Guard<'a, T> = crate::Guard<'a, T, Lock>;
+pub type RedeemError<'a, T> = crate::RedeemError<'a, T, Lock>;
+pub type RedeemResult<'a, T> = crate::RedeemResult<'a, T, Lock>;
 
 unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where Arc<RwLock<Option<&'a T>>>: Send {}
 unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where Arc<RwLock<Option<&'a T>>>: Sync {}
@@ -83,6 +85,6 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (
     crate::ritual(value)
 }
 
-pub fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> Option<(Lich<T>, Soul<'a>)> {
+pub fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> RedeemResult<'a, T> {
     unsafe { crate::redeem(lich, soul) }
 }

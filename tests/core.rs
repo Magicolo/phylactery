@@ -8,10 +8,10 @@ macro_rules! lock_cell {
             let function = || {};
             let (lich1, soul1) = ritual::<_, dyn Fn()>(&function);
             let (lich2, soul2) = ritual::<_, dyn Fn()>(&function);
-            let (lich1, soul2) = redeem(lich1, soul2).unwrap();
-            let (lich2, soul1) = redeem(lich2, soul1).unwrap();
-            assert!(redeem(lich1, soul1).is_none());
-            assert!(redeem(lich2, soul2).is_none());
+            let (lich1, soul2) = redeem(lich1, soul2).err().unwrap().into_inner();
+            let (lich2, soul1) = redeem(lich2, soul1).err().unwrap().into_inner();
+            assert!(redeem(lich1, soul1).ok().flatten().is_none());
+            assert!(redeem(lich2, soul2).ok().flatten().is_none());
         }
 
         #[test]
@@ -77,7 +77,7 @@ macro_rules! lock_raw {
             })
             .join()
             .unwrap();
-            assert!($($safe)? { redeem(lich, soul) }.is_none());
+            assert!($($safe)? { redeem(lich, soul) }.ok().flatten().is_none());
         }
 
         #[test]
@@ -91,7 +91,7 @@ macro_rules! lock_raw {
                 'a'
             );
             let lich = LICH.lock().unwrap().take().unwrap();
-            assert!($($safe)? { redeem(lich, soul) }.is_none());
+            assert!($($safe)? { redeem(lich, soul) }.ok().flatten().is_none());
         }
     };
 }
@@ -102,7 +102,7 @@ macro_rules! lock_cell_raw {
         fn redeem_succeeds_with_none() {
             let function = || {};
             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-            assert!($($safe)? { redeem(lich, soul) }.is_none());
+            assert!($($safe)? { redeem(lich, soul) }.ok().flatten().is_none());
         }
 
         #[test]
@@ -113,9 +113,9 @@ macro_rules! lock_cell_raw {
                 let guard = $($safe)? { lich1.borrow() }$(.$unwrap())?;
                 let (lich2, soul2) = ritual::<_, dyn Fn() -> char>(guard.deref());
                 assert_eq!($($safe)? { lich2.borrow() }$(.$unwrap())?(), 'a');
-                assert!($($safe)? { redeem(lich2, soul2) }.is_none());
+                assert!($($safe)? { redeem(lich2, soul2) }.ok().flatten().is_none());
             }
-            assert!($($safe)? { redeem(lich1, soul1) }.is_none());
+            assert!($($safe)? { redeem(lich1, soul1) }.ok().flatten().is_none());
         }
 
         #[test]
@@ -124,7 +124,7 @@ macro_rules! lock_cell_raw {
             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
             assert!(lich.is_bound());
             assert!(soul.is_bound());
-            assert!($($safe)? { redeem(lich, soul) }.is_none());
+            assert!($($safe)? { redeem(lich, soul) }.ok().flatten().is_none());
         }
     };
 }
@@ -162,7 +162,7 @@ mod cell {
             'a'
         );
         let lich = LICH.with_borrow_mut(|slot| slot.take()).unwrap();
-        assert!(redeem(lich, soul).is_none());
+        assert!(redeem(lich, soul).ok().flatten().is_none());
     }
 }
 
@@ -181,8 +181,8 @@ mod raw {
         let function = || {};
         let (lich1, soul1) = ritual::<_, dyn Fn()>(&function);
         let (lich2, soul2) = ritual::<_, dyn Fn()>(&function);
-        assert!(unsafe { redeem(lich1, soul2) }.is_none());
-        assert!(unsafe { redeem(lich2, soul1) }.is_none());
+        assert!(unsafe { redeem(lich1, soul2) }.ok().flatten().is_none());
+        assert!(unsafe { redeem(lich2, soul1) }.ok().flatten().is_none());
     }
 
     #[test]
@@ -229,6 +229,6 @@ mod raw {
         let lich = lich.try_sever().unwrap_err();
         let soul = soul.try_sever().unwrap_err();
         let soul = soul.try_sever().unwrap_err();
-        unsafe { redeem(lich, soul) };
+        assert!(unsafe { redeem(lich, soul) }.ok().flatten().is_none());
     }
 }

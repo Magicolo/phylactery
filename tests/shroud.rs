@@ -31,9 +31,9 @@ fn shroud_macro_compiles() {
     }
 
     let (lich, soul) = simple(&());
-    unsafe { redeem(lich, soul) };
+    assert!(unsafe { redeem(lich, soul) }.ok().flatten().is_none());
     let (lich, soul) = generic(&());
-    unsafe { redeem(lich, soul) };
+    assert!(unsafe { redeem(lich, soul) }.ok().flatten().is_none());
     let (lich, soul) = generics(&());
-    unsafe { redeem(lich, soul) };
+    assert!(unsafe { redeem(lich, soul) }.ok().flatten().is_none());
 }

@@ -30,6 +30,9 @@ TODO:
 */
 use crate::shroud::Shroud;
 use core::{
+    any::type_name,
+    error::Error,
+    fmt,
     mem::ManuallyDrop,
     ops::Deref,
     ptr::{self, NonNull},
@@ -55,6 +58,9 @@ pub trait Bind {
 pub struct Soul<'a, B: Bind + ?Sized>(pub(crate) B::Life<'a>);
 pub struct Lich<T: ?Sized, B: Bind + ?Sized>(pub(crate) B::Data<T>);
 pub struct Guard<'a, T: ?Sized + 'a, B: Bind + ?Sized>(pub(crate) B::Refer<'a, T>);
+
+pub struct RedeemError<'a, T: ?Sized, B: Bind + ?Sized>(Lich<T, B>, Soul<'a, B>);
+pub type RedeemResult<'a, T, B> = Result<Option<Soul<'a, B>>, RedeemError<'a, T, B>>;
 
 pub trait Sever {
     fn sever(&mut self) -> bool;
@@ -140,17 +146,47 @@ fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a, B: Bind + ?Sized>(
     (Lich(strong), Soul(weak))
 }
 
+impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> fmt::Debug for RedeemError<'a, T, B> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "failed to redeem `Lich<{}, {}>` and `Soul<'a, {}>` pair",
+            type_name::<T>(),
+            type_name::<B>(),
+            type_name::<B>(),
+        )
+    }
+}
+
+impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> fmt::Display for RedeemError<'a, T, B> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> Error for RedeemError<'a, T, B> {}
+
+impl<'a, T: ?Sized + 'a, B: Bind + ?Sized> RedeemError<'a, T, B> {
+    pub fn into_inner(self) -> (Lich<T, B>, Soul<'a, B>) {
+        (self.0, self.1)
+    }
+}
+
 unsafe fn redeem<'a, T: ?Sized + 'a, B: Bind + ?Sized>(
     lich: Lich<T, B>,
     soul: Soul<'a, B>,
-) -> Option<(Lich<T, B>, Soul<'a, B>)> {
+) -> RedeemResult<'a, T, B> {
     if B::are_bound(&lich.0, &soul.0) {
         let lich = ManuallyDrop::new(lich);
-        unsafe { ptr::read(&lich.0) };
-        let soul = ManuallyDrop::new(soul);
-        unsafe { ptr::read(&soul.0) };
-        None
+        drop(unsafe { ptr::read(&lich.0) });
+        if B::is_life_bound(&soul.0) {
+            Ok(Some(soul))
+        } else {
+            let soul = ManuallyDrop::new(soul);
+            unsafe { ptr::read(&soul.0) };
+            Ok(None)
+        }
     } else {
-        Some((lich, soul))
+        Err(RedeemError(lich, soul))
     }
 }

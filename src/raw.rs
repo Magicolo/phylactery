@@ -10,6 +10,8 @@ pub struct Raw;
 pub type Soul<'a> = crate::Soul<'a, Raw>;
 pub type Lich<T> = crate::Lich<T, Raw>;
 pub type Guard<'a, T> = crate::Guard<'a, T, Raw>;
+pub type RedeemError<'a, T> = crate::RedeemError<'a, T, Raw>;
+pub type RedeemResult<'a, T> = crate::RedeemResult<'a, T, Raw>;
 
 unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where &'a T: Send {}
 unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where &'a T: Sync {}
@@ -94,9 +96,8 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (
 /// do a pointer comparison to validate whether the two are bound together but
 /// since this validation can not be guaranteed without incurring additional
 /// performance/memory costs, the burden is shifted to the caller.
-pub unsafe fn redeem<'a, T: ?Sized + 'a>(
-    lich: Lich<T>,
-    soul: Soul<'a>,
-) -> Option<(Lich<T>, Soul<'a>)> {
+pub unsafe fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> RedeemResult<'a, T> {
+    // TODO: For a valid `Lich<T>`, this will always return `Ok(Some(sould))` and
+    // then panic when the soul is dropped.
     unsafe { crate::redeem(lich, soul) }
 }
