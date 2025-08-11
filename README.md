@@ -68,7 +68,7 @@ Different variants exist with different tradeoffs:
 ---
 ### Examples
 
-<p align="right"><em> thread_spawn_bridge.rs </em></p>
+<p align="right"><em> examples/thread_spawn_bridge.rs </em></p>
 
 ```rust
 #![cfg(feature = "lock")]
@@ -122,7 +122,7 @@ fn main() {
 
 ###
 
-<p align="right"><em> scoped_static_logger.rs </em></p>
+<p align="right"><em> examples/scoped_static_logger.rs </em></p>
 
 ```rust
 #![cfg(feature = "cell")]
