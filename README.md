@@ -1,4 +1,4 @@
-<div align="center"> <h1> phylactery 0.3.3 </h1> </div>
+<div align="center"> <h1> phylactery 0.4.0 </h1> </div>
 
 <p align="center">
     <em> 
