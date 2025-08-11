@@ -106,8 +106,8 @@ pub mod thread_spawn_bridge {
         // Spawn a bunch of threads that will all call `F`.
         for index in 0..parallelism.get() {
             let lich = lich.clone();
-            // The non-static function `F` crosses a `'static` boundary wrapped within
-            // the `Lich<T>`.
+            // The non-static function `F` crosses a `'static` boundary protected by the
+            // `Lich<T>`.
             thread::spawn(move || {
                 // Borrowing may fail if the `Soul<'a>` has been dropped/severed.
                 if let Some(guard) = lich.borrow() {
