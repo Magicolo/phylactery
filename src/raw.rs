@@ -88,10 +88,9 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (
 /// performance/memory costs, the burden is shifted to the caller.
 ///
 /// Returns `Ok(())` if the [`Lich<T>`] and [`Soul<'a>`] were bound together and
-/// redeemed, otherwise `Err(RedeemError(lich, soul))`. If the [`RedeemError`]
-/// is not handled by properly [`redeem`]ing the [`Lich<T>`] and the
-/// [`Soul<'a>`] contained in it, they will panic on drop. See
-/// [`RedeemError::into_inner`].
+/// redeemed, otherwise `Err((lich, soul))`. If the error is not handled by
+/// properly [`redeem`]ing the [`Lich<T>`] and the [`Soul<'a>`] contained in it,
+/// they will panic on drop.
 pub unsafe fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> RedeemResult<'a, T> {
     unsafe { crate::redeem(lich, soul, false).map(|_| {}) }
 }
