@@ -34,7 +34,7 @@ Different variants exist with different tradeoffs:
     - Does require some `unsafe` calls (`Lich<T>::borrow`).
     - `Lich<T>` can **not** be cloned.
     - Can be sent to other threads.
-    - Can be used in `#[no_std]` contexts.
+    - Can be used with `#[no_std]`.
 - `phylactery::atomic`:
     - Adds minimal overhead with an `AtomicU32` reference counter.
     - Does *not* allocate heap memory.
@@ -43,7 +43,7 @@ Different variants exist with different tradeoffs:
     - Does **not** require `unsafe` calls.
     - `Lich<T>` can be cloned.
     - Can be sent to other threads.
-    - Can be used in `#[no_std]` contexts.
+    - Can be used with `#[no_std]`.
 - `phylactery::cell`:
     - Adds an indirection and minimal overhead using `Rc<RefCell>`.
     - Does allocate heap memory.
