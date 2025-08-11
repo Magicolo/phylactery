@@ -29,13 +29,24 @@ inaccessible from a remaining `Lich<T>`.
 Different variants exist with different tradeoffs:
 - `phylactery::raw`: 
     - Zero cost (wraps a pointer in a new type).
+    - Does *not* allocate heap memory.
     - Does require the `Lich<T>` to be `redeem`ed with its `Soul<'a>` (otherwise, `Lich<T>` and `Soul<'a>` **will** panic on drop).
     - Does require some `unsafe` calls (`Lich<T>::borrow`).
     - `Lich<T>` can **not** be cloned.
     - Can be sent to other threads.
     - Can be used in `#[no_std]` contexts.
+- `phylactery::atomic`: 
+    - Adds minimal overhead with an `AtomicU32` reference counter.
+    - Does *not* allocate heap memory.
+    - Does require an additional memory location (an `&mut u32`) to create the `Lich<T>/Soul<'a>` pair.
+    - If a `Lich<T>` still exists when the `Soul<'a>` is dropped, the thread will block until the `Lich<T>` is dropped (which can lead to dead locks).
+    - Does **not** require `unsafe` calls.
+    - `Lich<T>` can be cloned.
+    - Can be sent to other threads.
+    - Can be used in `#[no_std]` contexts.
 - `phylactery::cell`: 
     - Adds an indirection and minimal overhead using `Rc<RefCell>`.
+    - Does allocate heap memory.
     - Allows for the use of the `Lich<T>/Soul<'a>::sever` methods.
     - If a borrow still exists when the `Soul<'a>` is dropped, the thread will panic.
     - Does **not** require the `Lich<T>`es to be `redeem`ed (although it is considered good practice to do so).
@@ -44,6 +55,7 @@ Different variants exist with different tradeoffs:
     - Can **not** be sent to other threads.
 - `phylactery::lock`:
     - Adds an indirection and *some* overhead using `Arc<RwLock>`.
+    - Does allocate heap memory.
     - Allows for the use of the `Lich<T>/Soul<'a>::sever` methods.
     - If a borrow still exists when the `Soul<'a>` is dropped, the thread will block until the borrow expires (which can lead to dead locks).
     - Does **not** require the `Lich<T>` to be `redeem`ed (although it is considered good practice to do so).
