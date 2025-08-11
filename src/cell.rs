@@ -83,6 +83,8 @@ impl Binding for Cell {
 }
 
 impl<T: ?Sized> Lich<T> {
+    /// Borrowing may fail if the `Soul<'a>` has been dropped/severed.
+    /// Returns a `Guard<'a, T>` that tracks the borrow.
     pub fn borrow(&self) -> Option<Guard<'_, T>> {
         // `try_borrow` can be used here because only the `sever` operation calls
         // `borrow_mut`, at which point, the value must not be observable
