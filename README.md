@@ -192,8 +192,10 @@ pub mod thread_spawn_bridge {
 
         // The `Soul<'a>` continues to track the captured `'a` reference and will
         // guarantee that it becomes inaccessible when it itself drops.
-        // Note that this thread may block when the `Soul<'a>` is dropped if there are
-        // active borrows. Note that the `Lich<T>`es do not need be `redeem`ed.
+        // Note that this may block this thread if there still are active borrows at the
+        // time of drop.
+        //
+        // Note that the `Lich<T>`es do not need be `redeem`ed.
         soul
     }
 }
