@@ -66,7 +66,7 @@ Different variants exist with different tradeoffs:
 *Since this library makes use of some `unsafe` code, all tests are run with `miri` to try to catch any unsoundness.*
 
 ---
-### Cheat Sheet
+### Examples
 
 ```rust
 {% include "thread_spawn_bridge.rs" %}
