@@ -167,7 +167,6 @@ mod fail {
         soul.clone();
     });
 
-    #[cfg(feature = "std")]
     fail!(can_not_send_raw_unsync_to_thread, {
         use phylactery::raw::ritual;
         use std::thread::spawn;
@@ -182,7 +181,6 @@ mod fail {
         Lich::<dyn Fn()>::default();
     });
 
-    #[cfg(feature = "cell")]
     fail!(can_not_send_cell_to_thread, {
         use phylactery::cell::ritual;
         use std::thread::spawn;
@@ -192,7 +190,6 @@ mod fail {
         spawn(move || lich);
     });
 
-    #[cfg(feature = "lock")]
     fail!(can_not_send_lock_unsync_to_thread, {
         use phylactery::lock::ritual;
         use std::thread::spawn;
@@ -202,7 +199,6 @@ mod fail {
         spawn(move || lich);
     });
 
-    #[cfg(feature = "atomic")]
     fail!(can_not_create_default_atomic_lich, {
         use phylactery::atomic::Lich;
         Lich::<dyn Fn()>::default();
