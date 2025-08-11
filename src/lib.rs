@@ -89,6 +89,12 @@ impl<T: ?Sized, B: Bind<Data<T>: Clone> + ?Sized> Clone for Lich<T, B> {
     }
 }
 
+impl<T: ?Sized, B: Bind<Data<T>: Default> + ?Sized> Default for Lich<T, B> {
+    fn default() -> Self {
+        Self(B::Data::default())
+    }
+}
+
 impl<T: ?Sized, B: Bind + ?Sized> Drop for Lich<T, B> {
     fn drop(&mut self) {
         self.0.try_sever();
