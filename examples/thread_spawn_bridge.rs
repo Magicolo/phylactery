@@ -12,8 +12,6 @@ pub mod thread_spawn_bridge {
         parallelism: NonZeroUsize,
         function: &F,
     ) -> Soul<'_> {
-        // `Shroud<F>` is already implemented for all `Fn(..) -> T` with all of their
-        // `Send`, `Sync` and `Unpin` permutations.
         let (lich, soul) = ritual::<_, dyn Fn(usize) + Send + Sync>(function);
         // Spawn a bunch of threads that will all call `F`.
         for index in 0..parallelism.get() {
@@ -33,6 +31,7 @@ pub mod thread_spawn_bridge {
 
         // The `Soul<'a>` continues to track the captured `'a` reference and will
         // guarantee that it becomes inaccessible when it itself drops.
+        //
         // Note that this may block this thread if there still are active borrows at the
         // time of drop.
         //
