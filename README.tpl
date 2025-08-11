@@ -29,7 +29,7 @@ inaccessible from a remaining `Lich<T>`.
 Different variants exist with different tradeoffs:
 - `phylactery::raw`:
     - Zero cost (wraps a pointer in a new type).
-    - Does *not* allocate heap memory.
+    - Does **not** allocate heap memory.
     - Does require the `Lich<T>` to be `redeem`ed with its `Soul<'a>` (otherwise, `Lich<T>` and `Soul<'a>` **will** panic on drop).
     - Does require some `unsafe` calls (`Lich<T>::borrow`).
     - `Lich<T>` can **not** be cloned.
@@ -37,7 +37,7 @@ Different variants exist with different tradeoffs:
     - Can be used with `#[no_std]`.
 - `phylactery::atomic`:
     - Adds minimal overhead with an `AtomicU32` reference counter.
-    - Does *not* allocate heap memory.
+    - Does **not** allocate heap memory.
     - Does require an additional memory location (an `&mut u32`) to create the `Lich<T>/Soul<'a>` pair.
     - If a `Lich<T>` still exists when the `Soul<'a>` is dropped, the thread will block until the `Lich<T>` is dropped (which can lead to dead locks).
     - Does **not** require `unsafe` calls.
