@@ -6,11 +6,11 @@ use core::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
-pub struct Fat;
+pub struct Atomic;
 
-pub type Soul<'a> = crate::Soul<'a, Fat>;
-pub type Lich<T> = crate::Lich<T, Fat>;
-pub type Pair<'a, T> = crate::Pair<'a, T, Fat>;
+pub type Soul<'a> = crate::Soul<'a, Atomic>;
+pub type Lich<T> = crate::Lich<T, Atomic>;
+pub type Pair<'a, T> = crate::Pair<'a, T, Atomic>;
 
 pub struct Data<T: ?Sized>(NonNull<T>, &'static AtomicU32);
 pub struct Life<'a>(&'a AtomicU32);
@@ -51,7 +51,7 @@ impl TrySever for Life<'_> {
     }
 }
 
-impl Binding for Fat {
+impl Binding for Atomic {
     type Data<T: ?Sized> = Data<T>;
     type Life<'a> = Life<'a>;
 
