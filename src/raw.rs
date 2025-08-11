@@ -39,12 +39,12 @@ impl Binding for Raw {
         ptr::addr_eq(data.0.as_ptr(), life.0.as_ptr())
     }
 
-    /// `Raw` order liches are always bounded until redeemed.
+    /// `Self::Life<'a>` is always bounded until redeemed.
     fn is_life_bound(_: &Self::Life<'_>) -> bool {
         true
     }
 
-    /// `Raw` order liches are always bounded until redeemed.
+    /// `Self::Data<T>` is always bounded until redeemed.
     fn is_data_bound<T: ?Sized>(_: &Self::Data<T>) -> bool {
         true
     }
@@ -107,5 +107,5 @@ fn sever_panic() -> bool {
         }
     }
 
-    panic!("this `Raw` order `Lich<T>` must be redeemed")
+    panic!("this `Lich<T, Raw>` must be redeemed")
 }

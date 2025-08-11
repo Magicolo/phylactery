@@ -284,7 +284,7 @@ mod raw {
 
     #[test]
     fn redeem_succeeds_with_mixed() {
-        // `Raw` order `Lich<T>/Soul<'a>` can not differentiate between two instances of
+        // `Lich<T, Raw>/Soul<'a, Raw>` can not differentiate between two instances of
         // the same binding.
         let function = || {};
         let (lich1, soul1) = ritual::<_, dyn Fn()>(&function);
