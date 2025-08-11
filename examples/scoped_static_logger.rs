@@ -2,9 +2,7 @@
 //! Implements a thread local scoped logger available from anywhere that can
 //! borrow values that live on the stack.
 
-use core::{cell::Cell, fmt::Display};
-// Uses the `cell` variant; see `lock` for a thread-safe version or `raw` for a even more
-// lightweight version (with some additional safety burden).
+use core::{cell::RefCell, fmt::Display};
 use phylactery::{
     cell::{Lich, redeem, ritual},
     shroud,
@@ -52,7 +50,7 @@ shroud!(Log);
 // Note that the `Lich<dyn Log>` implements `Default` and has the `'static`
 // lifetime.
 thread_local! {
-    static LOGGER: Cell<Lich<dyn Log>> = Cell::default();
+    static LOGGER: RefCell<Lich<dyn Log>> = RefCell::default();
 }
 
 pub fn scope<T: Display, F: FnOnce(&T)>(prefix: &str, argument: &T, function: F) {
