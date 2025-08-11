@@ -9,9 +9,8 @@ use phylactery::lock::{Soul, ritual};
 use std::thread;
 
 pub fn broadcast<F: Fn(usize) + Send + Sync>(parallelism: NonZeroUsize, function: &F) -> Soul<'_> {
-    // `Shroud<F>` is already implemented for all `Fn(..) -> T`, `FnMut(..) -> T`
-    // and `FnOnce(..) -> T` with all of their `Send`, `Sync` and `Unpin`
-    // permutations.
+    // `Shroud<F>` is already implemented for all `Fn(..) -> T` with all of their
+    // `Send`, `Sync` and `Unpin` permutations.
     let (lich, soul) = ritual::<_, dyn Fn(usize) + Send + Sync>(function);
     // Spawn a bunch of threads that will all call `F`.
     for index in 0..parallelism.get() {
