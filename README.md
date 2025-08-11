@@ -120,7 +120,8 @@ pub mod scoped_static_logger {
     // This thread local storage allows preserve this thread's call stack while
     // being able to log from anywhere without the need to pass a logger around.
     //
-    // Note that the `Lich<dyn Log>` has the `'static` lifetime.
+    // Note that the `Lich<dyn Log>` implements `Default` and has the `'static`
+    // lifetime.
     thread_local! {
         static LOGGER: Cell<Lich<dyn Log>> = Cell::default();
     }
@@ -157,55 +158,43 @@ pub mod scoped_static_logger {
 }
 
 /// Trivially reimplement `thread::scope` in a more powerful way.
+/// Contrarily to other `scope` solutions, here, the captured reference can be
+/// returned (as a `Soul<'a>`) while the threads continue to execute.
 #[cfg(feature = "lock")]
-#[allow(clippy::manual_try_fold)]
 pub mod thread_spawn_bridge {
     use core::num::NonZeroUsize;
-    use phylactery::lock::{redeem, ritual};
+    use phylactery::lock::{Soul, ritual};
     use std::thread;
 
-    pub fn broadcast<F: Fn(usize) + Send + Sync>(parallelism: NonZeroUsize, function: F) {
-        // `Shroud` is already implemented for all `Fn(..) -> T`, `FnMut(..) -> T` and
-        // `FnOnce(..) -> T` with all of their `Send`, `Sync` and `Unpin` permutations.
-        let (lich, soul) = ritual::<_, dyn Fn(usize) + Send + Sync>(&function);
-        // Spawn a bunch of threads that will all call `F` and collect their
-        // `JoinHandle`.
-        let handles = (0..parallelism.get())
-            .map(|index| {
-                let lich = lich.clone();
-                // The non-static function `F` will cross a `'static` boundary wrapped within
-                // the `Lich<T>`.
-                thread::spawn(move || {
-                    let lich = lich;
-                    {
-                        let guard = lich
-                            .borrow()
-                            .expect("since the `Soul<'a>` still lives, this must succeed");
-                        // Call the non-static function.
-                        guard(index);
-                    }
-                    lich
-                })
-            })
-            .collect::<Vec<_>>();
+    pub fn broadcast<F: Fn(usize) + Send + Sync>(
+        parallelism: NonZeroUsize,
+        function: &F,
+    ) -> Soul<'_> {
+        // `Shroud<F>` is already implemented for all `Fn(..) -> T`, `FnMut(..) -> T`
+        // and `FnOnce(..) -> T` with all of their `Send`, `Sync` and `Unpin`
+        // permutations.
+        let (lich, soul) = ritual::<_, dyn Fn(usize) + Send + Sync>(function);
+        // Spawn a bunch of threads that will all call `F`.
+        for index in 0..parallelism.get() {
+            let lich = lich.clone();
+            // The non-static function `F` crosses a `'static` boundary wrapped within
+            // the `Lich<T>`.
+            thread::spawn(move || {
+                // Borrowing may fail if the `Soul<'a>` has been dropped/severed.
+                if let Some(guard) = lich.borrow() {
+                    // Call the non-static function.
+                    guard(index);
+                }
+                // Allow the `Guard` and `Lich<T>` to drop such that the
+                // `Soul<'a>` can complete its `Soul::sever`.
+            });
+        }
 
-        // `redeem` all `Lich<T>`es with their `Soul<'a>`.
-        let soul = handles.into_iter().fold(soul, |soul, handle| {
-            let lich = handle.join().expect("thread succeeded");
-            // `redeem` will give back the `Soul<'a>` if more `Lich<T>` exist
-            redeem(lich, soul)
-                .ok()
-                .expect("must be able to redeem")
-                .expect("must be `Some` since some `Lich<T>` remain")
-        });
-
-        // All `Lich<T>`es have been `redeem`ed, so the `Soul<'a>` must be `None`.
-        assert!(
-            redeem(lich, soul)
-                .ok()
-                .expect("must be able to redeem")
-                .is_none()
-        );
+        // The `Soul<'a>` continues to track the captured `'a` reference and will
+        // guarantee that it becomes inaccessible when it itself drops.
+        // Note that this thread may block when the `Soul<'a>` is dropped if there are
+        // active borrows. Note that the `Lich<T>`es do not need be `redeem`ed.
+        soul
     }
 }
 
@@ -218,7 +207,7 @@ fn main() {
     #[cfg(feature = "lock")]
     thread_spawn_bridge::broadcast(
         std::thread::available_parallelism().unwrap_or(core::num::NonZeroUsize::MIN),
-        |index| println!("{index}"),
+        &|index| println!("{index}"),
     );
 }
 
