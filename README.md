@@ -14,7 +14,7 @@ Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dy
 </div>
 
 ---
-### In Brief
+## In Brief
 
 The general usage pattern of this library is:
 - Choose a `Lich<T>/Soul<'a>` variant for your use-case (see below for the tradeoffs).
@@ -66,9 +66,9 @@ Different variants exist with different tradeoffs:
 *Since this library makes use of some `unsafe` code, all tests are run with `miri` to try to catch any unsoundness.*
 
 ---
-### Examples
+## Examples
 
-- thread_spawn_bridge.rs
+<p align="right"><em> thread_spawn_bridge.rs </em></p>
 ```rust
 #![cfg(feature = "lock")]
 //! Trivially reimplement `thread::scope` in a more powerful way.
@@ -119,7 +119,7 @@ fn main() {
 
 ```
 
-- scoped_static_logger.rs
+<p align="right"><em> thread_spawn_bridge.rs </em></p>
 ```rust
 #![cfg(feature = "cell")]
 //! Implements a thread local scoped logger available from anywhere that can
@@ -219,7 +219,7 @@ fn main() {
 _See the [examples](examples/) and [tests](tests/) folder for more detailed examples._
 
 ---
-### Contribute
+## Contribute
 - If you find a bug or have a feature request, please open an [issues](https://github.com/Magicolo/phylactery/issues).
 - `phylactery` is actively maintained and [pull requests](https://github.com/Magicolo/phylactery/pulls) are welcome.
 - If `phylactery` was useful to you, please consider leaving a [star](https://github.com/Magicolo/phylactery)!
