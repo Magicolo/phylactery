@@ -3,8 +3,6 @@
 <p align="center">
     <em> 
 Safe and thin wrappers around lifetime extension to allow non-static values to cross static boundaries.
-
-Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dyn Trait + 'static>` and a `Soul<'a>` pair such that the `dyn Trait` can cross `'static` boundaries while tracking the lifetime `'a`.
     </em>
 </p>
 
@@ -15,6 +13,7 @@ Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dy
 
 ---
 ### In Brief
+Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dyn Trait + 'static>` and a `Soul<'a>` pair such that the `dyn Trait` can cross `'static` boundaries while tracking the lifetime `'a`.
 
 The general usage pattern of this library is:
 - Choose a `Lich<T>/Soul<'a>` variant for your use-case (see below for the tradeoffs).
