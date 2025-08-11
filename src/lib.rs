@@ -91,7 +91,7 @@ impl<T: ?Sized, B: Bind<Data<T>: Clone> + ?Sized> Clone for Lich<T, B> {
 
 impl<T: ?Sized, B: Bind + ?Sized> Drop for Lich<T, B> {
     fn drop(&mut self) {
-        self.0.sever();
+        self.0.try_sever();
     }
 }
 
@@ -131,7 +131,7 @@ fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a, B: Bind + ?Sized>(
     (Lich(data), Soul(life))
 }
 
-unsafe fn redeem<'a, T: ?Sized + 'a, B: Bind + ?Sized>(
+fn redeem<'a, T: ?Sized + 'a, B: Bind + ?Sized>(
     lich: Lich<T, B>,
     soul: Soul<'a, B>,
     bound: bool,

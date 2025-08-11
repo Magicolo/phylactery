@@ -118,7 +118,7 @@ macro_rules! lock_raw {
             })
             .join()
             .unwrap();
-            assert!($ok($($safe)? { redeem(lich, soul) }));
+            assert!($ok(redeem(lich, soul)));
         }
 
         #[test]
@@ -132,7 +132,7 @@ macro_rules! lock_raw {
                 'a'
             );
             let lich = LICH.lock().unwrap().take().unwrap();
-            assert!($ok($($safe)? { redeem(lich, soul) }));
+            assert!($ok(redeem(lich, soul)));
         }
     };
 }
@@ -143,7 +143,7 @@ macro_rules! lock_cell_raw {
         fn redeem_succeeds_with_none() {
             let function = || {};
             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-            assert!($ok($($safe)? { redeem(lich, soul) }));
+            assert!($ok(redeem(lich, soul)));
         }
 
         #[test]
@@ -154,9 +154,9 @@ macro_rules! lock_cell_raw {
                 let guard = $($safe)? { lich1.borrow() }$(.$unwrap())?;
                 let (lich2, soul2) = ritual::<_, dyn Fn() -> char>(guard.deref());
                 assert_eq!($($safe)? { lich2.borrow() }$(.$unwrap())?(), 'a');
-                assert!($ok($($safe)? { redeem(lich2, soul2) }));
+                assert!($ok(redeem(lich2, soul2)));
             }
-            assert!($ok($($safe)? { redeem(lich1, soul1) }));
+            assert!($ok(redeem(lich1, soul1)));
         }
 
         #[test]
@@ -165,7 +165,7 @@ macro_rules! lock_cell_raw {
             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
             assert!(lich.is_bound());
             assert!(soul.is_bound());
-            assert!($ok($($safe)? { redeem(lich, soul) }));
+            assert!($ok(redeem(lich, soul)));
         }
     };
 }
@@ -232,8 +232,8 @@ mod raw {
         let function = || {};
         let (lich1, soul1) = ritual::<_, dyn Fn()>(&function);
         let (lich2, soul2) = ritual::<_, dyn Fn()>(&function);
-        assert!(unsafe { redeem(lich1, soul2) }.is_ok());
-        assert!(unsafe { redeem(lich2, soul1) }.is_ok());
+        assert!(redeem(lich1, soul2).is_ok());
+        assert!(redeem(lich2, soul1).is_ok());
     }
 
     #[test]
@@ -273,13 +273,20 @@ mod raw {
     }
 
     #[test]
-    fn try_sever_always_fails() {
+    #[should_panic]
+    fn panics_with_lich_try_sever() {
         let function = || {};
         let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-        let lich = lich.try_sever().unwrap_err();
-        let lich = lich.try_sever().unwrap_err();
-        let soul = soul.try_sever().unwrap_err();
-        let soul = soul.try_sever().unwrap_err();
-        assert!(unsafe { redeem(lich, soul) }.is_ok());
+        drop(lich.try_sever());
+        drop(soul);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panics_with_soul_try_sever() {
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+        drop(soul.try_sever());
+        drop(lich);
     }
 }

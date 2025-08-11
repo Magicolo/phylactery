@@ -76,10 +76,24 @@ impl<T: ?Sized> Lich<T> {
     }
 }
 
+/// Splits the provided `&'a T` into a [`Lich<S>`] and [`Soul<'a>`] pair that
+/// are bound together where `S` is some trait that implements [`Shroud<T>`].
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (Lich<S>, Soul<'a>) {
     crate::ritual(value)
 }
 
+/// Disposes of a [`Lich<T>`] and a [`Soul<'a>`] that were bound together by the
+/// same [`ritual`].
+///
+/// While it is not strictly necessary for the [`Cell`] variant to use this call
+/// since is safe to simply let the [`Lich<T>`] or the [`Soul<'a>`] be dropped,
+/// it is considered good practice to ensure consistent usage across all
+/// variants and to convince oneself that no borrow remain alive.
+///
+/// Returns `Ok(..)` if the [`Lich<T>`] and [`Soul<'a>`] were bound by the same
+/// [`ritual`] and [`redeem`]ed. The [`Soul<'a>`] will be returned if more
+/// instances of [`Lich<T>`] remain to allow them to be [`redeem`]ed. Otherwise
+/// returns `Err((lich, soul))` such that they can be properly [`redeem`]ed.
 pub fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> RedeemResult<'a, T> {
-    unsafe { crate::redeem(lich, soul, true) }
+    crate::redeem(lich, soul, true)
 }
