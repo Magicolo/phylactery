@@ -29,8 +29,8 @@ inaccessible from a remaining `Lich<T>`.
 Different variants exist with different tradeoffs:
 - `phylactery::raw`: 
     - Zero cost (wraps a pointer in a new type).
-    - Does require the `Lich<T>` to be `redeem`ed (otherwise, `Lich<T>` and `Soul<'a>` **will** panic on drop).
-    - Does require some `unsafe` calls.
+    - Does require the `Lich<T>` to be `redeem`ed with its `Soul<'a>` (otherwise, `Lich<T>` and `Soul<'a>` **will** panic on drop).
+    - Does require some `unsafe` calls (`Lich<T>::borrow`).
     - `Lich<T>` can **not** be cloned.
     - Can be sent to other threads.
     - Can be used in `#[no_std]` contexts.
