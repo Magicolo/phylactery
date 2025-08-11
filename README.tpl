@@ -69,11 +69,13 @@ Different variants exist with different tradeoffs:
 ### Examples
 
 <p align="right"><em> thread_spawn_bridge.rs </em></p>
+
 ```rust
 {% include "thread_spawn_bridge.rs" %}
 ```
 
 <p align="right"><em> thread_spawn_bridge.rs </em></p>
+
 ```rust
 {% include "scoped_static_logger.rs" %}
 ```
