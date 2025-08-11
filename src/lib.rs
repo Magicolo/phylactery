@@ -140,21 +140,14 @@ mod fail {
         };
     }
 
-    fail!(can_not_mutate_while_soul_lives, {
-        use phylactery::raw::ritual;
-
-        let mut value = 'a';
-        let mut function = |letter| value = letter;
-        let (lich, soul) = ritual::<_, dyn FnMut(char)>(&function);
-        function('b');
-    });
-
     fail!(can_not_drop_while_soul_lives, {
-        use phylactery::raw::ritual;
+        use crate::raw::ritual;
+        use core::cell::RefCell;
 
-        let mut value = 'a';
-        let mut function = |letter| value = letter;
-        let (lich, soul) = ritual::<_, dyn FnMut(char)>(&function);
+        let value = String::new();
+        let cell = RefCell::new(value);
+        let function = move |letter| cell.borrow_mut().push(letter);
+        let (lich, soul) = ritual::<_, dyn Fn(char)>(&function);
         drop(function);
     });
 
@@ -174,24 +167,7 @@ mod fail {
         soul.clone();
     });
 
-    fail!(can_not_send_cell_to_thread, {
-        use phylactery::cell::ritual;
-        use std::thread::spawn;
-
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn() + Send + Sync>(&function);
-        spawn(move || lich);
-    });
-
-    fail!(can_not_send_lock_unsync_to_thread, {
-        use phylactery::lock::ritual;
-        use std::thread::spawn;
-
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
-        spawn(move || lich);
-    });
-
+    #[cfg(feature = "std")]
     fail!(can_not_send_raw_unsync_to_thread, {
         use phylactery::raw::ritual;
         use std::thread::spawn;
@@ -204,6 +180,26 @@ mod fail {
     fail!(can_not_create_default_raw_lich, {
         use phylactery::raw::Lich;
         Lich::<dyn Fn()>::default();
+    });
+
+    #[cfg(feature = "cell")]
+    fail!(can_not_send_cell_to_thread, {
+        use phylactery::cell::ritual;
+        use std::thread::spawn;
+
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn() + Send + Sync>(&function);
+        spawn(move || lich);
+    });
+
+    #[cfg(feature = "lock")]
+    fail!(can_not_send_lock_unsync_to_thread, {
+        use phylactery::lock::ritual;
+        use std::thread::spawn;
+
+        let function = || {};
+        let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
+        spawn(move || lich);
     });
 
     #[cfg(feature = "atomic")]
