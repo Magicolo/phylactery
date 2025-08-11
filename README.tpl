@@ -69,7 +69,11 @@ Different variants exist with different tradeoffs:
 ### Cheat Sheet
 
 ```rust
-{% include "cheat.rs" %}
+{% include "thread_spawn_bridge.rs" %}
+```
+
+```rust
+{% include "scoped_static_logger.rs" %}
 ```
 
 _See the [examples](examples/) and [tests](tests/) folder for more detailed examples._
