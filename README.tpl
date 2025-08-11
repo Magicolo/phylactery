@@ -14,7 +14,7 @@ Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dy
 </div>
 
 ---
-## In Brief
+### In Brief
 
 The general usage pattern of this library is:
 - Choose a `Lich<T>/Soul<'a>` variant for your use-case (see below for the tradeoffs).
@@ -66,7 +66,7 @@ Different variants exist with different tradeoffs:
 *Since this library makes use of some `unsafe` code, all tests are run with `miri` to try to catch any unsoundness.*
 
 ---
-## Examples
+### Examples
 
 <p align="right"><em> thread_spawn_bridge.rs </em></p>
 ```rust
@@ -81,7 +81,7 @@ Different variants exist with different tradeoffs:
 _See the [examples](examples/) and [tests](tests/) folder for more detailed examples._
 
 ---
-## Contribute
+### Contribute
 - If you find a bug or have a feature request, please open an [issues](https://github.com/Magicolo/{{ package.name }}/issues).
 - `{{ package.name }}` is actively maintained and [pull requests](https://github.com/Magicolo/{{ package.name }}/pulls) are welcome.
 - If `{{ package.name }}` was useful to you, please consider leaving a [star](https://github.com/Magicolo/{{ package.name }})!
