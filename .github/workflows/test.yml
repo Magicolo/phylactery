@@ -15,8 +15,8 @@ jobs:
     - uses: actions/checkout@v4
     - run: cargo hack nextest run --release --all-targets --verbose --feature-powerset
     - run: cargo hack nextest run --release --all-targets --verbose --feature-powerset --rust-version
-    - run: cargo hack test --doc --release --verbose --feature-powerset
-    - run: cargo hack test --doc --release --verbose --feature-powerset --rust-version
+    - run: cargo hack test --doc --release --all-features --verbose
+    - run: cargo hack test --doc --release --all-features --verbose --rust-version
   miri:
     runs-on: ubuntu-latest
     container: 
