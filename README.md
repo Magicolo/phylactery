@@ -110,7 +110,7 @@ pub mod scoped_static_logger {
     //
     // Note that the `Lich<dyn Log>` has the `'static` lifetime.
     thread_local! {
-        static LOGGER: Cell<Option<Lich<dyn Log>>> = const { Cell::new(None) };
+        static LOGGER: Cell<Lich<dyn Log>> = Cell::default();
     }
 
     pub fn scope<T: Display, F: FnOnce(&T)>(prefix: &str, argument: &T, function: F) {
@@ -118,7 +118,7 @@ pub mod scoped_static_logger {
         {
             // `Lich::borrow` can fail if the binding between it and its `Soul<'a>` has been
             // severed.
-            let guard = parent.as_ref().and_then(Lich::borrow);
+            let guard = parent.borrow();
             // This `Logger` captures some references that live on the stack.
             let logger = Logger {
                 parent: guard.as_deref(),
@@ -129,10 +129,10 @@ pub mod scoped_static_logger {
             // `ritual` produces a `Lich<dyn Log + 'static>` and `Soul<'a>` pair.
             let (lich, soul) = ritual::<_, dyn Log + 'static>(&logger);
             // Push this logger as the current scope.
-            LOGGER.set(Some(lich));
+            LOGGER.set(lich);
             function(argument);
             // Pop the logger.
-            let lich = LOGGER.take().expect("must get back our logger");
+            let lich = LOGGER.take();
             // Although not strictly required in this case (letting the `Lich<T>` and
             // `Soul<'a>` be dropped would also work), `redeem` is the recommended
             // pattern to dispose of a `Lich<T>` and `Soul<'a>` pair since it is going to
