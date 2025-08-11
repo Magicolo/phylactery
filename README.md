@@ -68,6 +68,7 @@ Different variants exist with different tradeoffs:
 ---
 ### Examples
 
+- thread_spawn_bridge.rs
 ```rust
 #![cfg(feature = "lock")]
 //! Trivially reimplement `thread::scope` in a more powerful way.
@@ -118,6 +119,7 @@ fn main() {
 
 ```
 
+- scoped_static_logger.rs
 ```rust
 #![cfg(feature = "cell")]
 //! Implements a thread local scoped logger available from anywhere that can

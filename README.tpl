@@ -68,10 +68,12 @@ Different variants exist with different tradeoffs:
 ---
 ### Examples
 
+- thread_spawn_bridge.rs
 ```rust
 {% include "thread_spawn_bridge.rs" %}
 ```
 
+- scoped_static_logger.rs
 ```rust
 {% include "scoped_static_logger.rs" %}
 ```
