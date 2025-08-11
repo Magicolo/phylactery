@@ -93,7 +93,7 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (
 /// the [`Soul<'a>`] contained in the error will panic on drop and therefore
 /// must be properly [`redeem`]ed.
 pub fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> RedeemResult<'a, T> {
-    crate::redeem(lich, soul, false).map(|_| {})
+    crate::redeem::<_, _, false>(lich, soul).map(|_| {})
 }
 
 fn sever_panic() -> bool {

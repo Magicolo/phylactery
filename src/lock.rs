@@ -13,30 +13,28 @@ unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where Arc<RwLock<Option<&'a T>>
 
 impl<T: Sever + ?Sized> Sever for Arc<RwLock<T>> {
     fn sever(&mut self) -> bool {
-        match self.write() {
-            Ok(mut guard) => guard.sever(),
-            Err(mut error) => error.get_mut().sever(),
-        }
+        sever(self)
     }
 
     fn try_sever(&mut self) -> Option<bool> {
-        match self.try_write() {
-            Ok(mut guard) => guard.try_sever(),
-            Err(TryLockError::Poisoned(mut error)) => error.get_mut().try_sever(),
-            Err(TryLockError::WouldBlock) => None,
+        // Only sever if there are no other `Self` clones.
+        if Arc::strong_count(self) == 1 {
+            try_sever(self)
+        } else {
+            None
         }
     }
 }
 
 impl<T: Sever + ?Sized> Sever for Weak<RwLock<T>> {
     fn sever(&mut self) -> bool {
-        self.upgrade().is_some_and(|mut strong| strong.sever())
+        self.upgrade().as_deref().is_some_and(sever)
     }
 
     fn try_sever(&mut self) -> Option<bool> {
-        self.upgrade()
-            .as_mut()
-            .map_or(Some(false), Sever::try_sever)
+        // If the `Weak::upgrade` fails, consider the sever to be a success with
+        // `Some(false)`.
+        self.upgrade().as_deref().map_or(Some(false), try_sever)
     }
 }
 
@@ -101,5 +99,20 @@ pub fn redeem<'a, T: ?Sized + 'a>(
     lich: Lich<T>,
     soul: Soul<'a>,
 ) -> Result<Option<Soul<'a>>, (Lich<T>, Soul<'a>)> {
-    crate::redeem(lich, soul, true)
+    crate::redeem::<_, _, true>(lich, soul)
+}
+
+fn sever<T: Sever + ?Sized>(lock: &RwLock<T>) -> bool {
+    match lock.write() {
+        Ok(mut guard) => guard.sever(),
+        Err(mut error) => error.get_mut().sever(),
+    }
+}
+
+fn try_sever<T: Sever + ?Sized>(lock: &RwLock<T>) -> Option<bool> {
+    match lock.try_write() {
+        Ok(mut guard) => guard.try_sever(),
+        Err(TryLockError::Poisoned(mut error)) => error.get_mut().try_sever(),
+        Err(TryLockError::WouldBlock) => None,
+    }
 }

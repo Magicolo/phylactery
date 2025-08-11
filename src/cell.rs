@@ -16,23 +16,28 @@ unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where Rc<RefCell<Option<&'a T>>
 
 impl<T: Sever + ?Sized> Sever for Rc<RefCell<T>> {
     fn sever(&mut self) -> bool {
-        self.borrow_mut().sever()
+        sever(self)
     }
 
     fn try_sever(&mut self) -> Option<bool> {
-        self.try_borrow_mut().ok()?.try_sever()
+        // Only sever if there are no other `Self` clones.
+        if Rc::strong_count(self) == 1 {
+            try_sever(self)
+        } else {
+            None
+        }
     }
 }
 
 impl<T: Sever + ?Sized> Sever for Weak<RefCell<T>> {
     fn sever(&mut self) -> bool {
-        self.upgrade().is_some_and(|mut strong| strong.sever())
+        self.upgrade().as_deref().is_some_and(sever)
     }
 
     fn try_sever(&mut self) -> Option<bool> {
-        self.upgrade()
-            .as_mut()
-            .map_or(Some(false), Sever::try_sever)
+        // If the `Weak::upgrade` fails, consider the sever to be a success with
+        // `Some(false)`.
+        self.upgrade().as_deref().map_or(Some(false), try_sever)
     }
 }
 
@@ -97,5 +102,13 @@ pub fn redeem<'a, T: ?Sized + 'a>(
     lich: Lich<T>,
     soul: Soul<'a>,
 ) -> Result<Option<Soul<'a>>, (Lich<T>, Soul<'a>)> {
-    crate::redeem(lich, soul, true)
+    crate::redeem::<_, _, true>(lich, soul)
+}
+
+fn sever<T: Sever + ?Sized>(cell: &RefCell<T>) -> bool {
+    cell.borrow_mut().sever()
+}
+
+fn try_sever<T: Sever + ?Sized>(cell: &RefCell<T>) -> Option<bool> {
+    cell.try_borrow_mut().ok()?.try_sever()
 }
