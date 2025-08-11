@@ -40,9 +40,6 @@ unsafe impl<T: ?Sized, B: Binding<Data<T>: Sync> + ?Sized> Sync for Lich<T, B> {
 unsafe impl<'a, B: Binding<Life<'a>: Send> + ?Sized> Send for Soul<'a, B> {}
 unsafe impl<'a, B: Binding<Life<'a>: Sync> + ?Sized> Sync for Soul<'a, B> {}
 
-trait SeverBoth: Sever + TrySever {}
-impl<S: Sever + TrySever> SeverBoth for S {}
-
 impl<T> Sever for Option<T> {
     fn sever(&mut self) -> bool {
         self.take().is_some()

@@ -1,4 +1,4 @@
-use crate::{Binding, Sever, SeverBoth, TrySever, shroud::Shroud};
+use crate::{Binding, Sever, TrySever, shroud::Shroud};
 use core::{
     ops::Deref,
     ptr::{self, NonNull},
@@ -11,8 +11,11 @@ pub type Soul<'a> = crate::Soul<'a, Lock>;
 pub type Lich<T> = crate::Lich<T, Lock>;
 pub type Pair<'a, T> = crate::Pair<'a, T, Lock>;
 pub struct Data<T: ?Sized>(Arc<RwLock<Option<NonNull<T>>>>);
-pub struct Life<'a>(Weak<RwLock<dyn SeverBoth + 'a>>);
+pub struct Life<'a>(Weak<RwLock<dyn Slot + 'a>>);
 pub struct Guard<'a, T: ?Sized>(RwLockReadGuard<'a, Option<NonNull<T>>>);
+
+trait Slot: Sever + TrySever {}
+impl<S: Sever + TrySever> Slot for S {}
 
 unsafe impl<'a, T: ?Sized + 'a> Send for Data<T> where Arc<RwLock<Option<&'a T>>>: Send {}
 unsafe impl<'a, T: ?Sized + 'a> Sync for Data<T> where Arc<RwLock<Option<&'a T>>>: Sync {}

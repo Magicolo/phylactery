@@ -1,4 +1,4 @@
-use crate::{Binding, Sever, SeverBoth, TrySever, shroud::Shroud};
+use crate::{Binding, Sever, TrySever, shroud::Shroud};
 use core::{
     cell::{Ref, RefCell},
     ops::Deref,
@@ -13,8 +13,11 @@ pub type Lich<T> = crate::Lich<T, Cell>;
 pub type Pair<'a, T> = crate::Pair<'a, T, Cell>;
 
 pub struct Data<T: ?Sized>(Rc<RefCell<Option<NonNull<T>>>>);
-pub struct Life<'a>(Weak<RefCell<dyn SeverBoth + 'a>>);
+pub struct Life<'a>(Weak<RefCell<dyn Slot + 'a>>);
 pub struct Guard<'a, T: ?Sized>(Ref<'a, Option<NonNull<T>>>);
+
+trait Slot: Sever + TrySever {}
+impl<S: Sever + TrySever> Slot for S {}
 
 unsafe impl<'a, T: ?Sized + 'a> Send for Data<T> where Rc<RefCell<Option<&'a T>>>: Send {}
 unsafe impl<'a, T: ?Sized + 'a> Sync for Data<T> where Rc<RefCell<Option<&'a T>>>: Sync {}
