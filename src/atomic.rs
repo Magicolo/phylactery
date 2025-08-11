@@ -12,7 +12,7 @@ pub type Soul<'a> = crate::Soul<'a, Atomic>;
 pub type Lich<T> = crate::Lich<T, Atomic>;
 pub type Pair<'a, T> = crate::Pair<'a, T, Atomic>;
 
-pub struct Data<T: ?Sized>(NonNull<T>, &'static AtomicU32);
+pub struct Data<T: ?Sized>(NonNull<T>, NonNull<AtomicU32>);
 pub struct Life<'a>(&'a AtomicU32);
 
 unsafe impl<'a, T: ?Sized + 'a> Send for Data<T> where &'a T: Send {}
@@ -26,15 +26,16 @@ impl<T: ?Sized> TrySever for Data<T> {
 
 impl<T: ?Sized> Clone for Data<T> {
     fn clone(&self) -> Self {
-        self.1.fetch_add(1, Ordering::Relaxed);
+        unsafe { self.1.as_ref() }.fetch_add(1, Ordering::Relaxed);
         Self(self.0, self.1)
     }
 }
 
 impl<T: ?Sized> Drop for Data<T> {
     fn drop(&mut self) {
-        if self.1.fetch_sub(1, Ordering::Relaxed) == 1 {
-            wake_one(self.1);
+        let atomic = unsafe { self.1.as_ref() };
+        if atomic.fetch_sub(1, Ordering::Relaxed) == 1 {
+            wake_one(atomic);
         }
     }
 }
@@ -56,7 +57,7 @@ impl Binding for Atomic {
     type Life<'a> = Life<'a>;
 
     fn are_bound<T: ?Sized>(data: &Self::Data<T>, life: &Self::Life<'_>) -> bool {
-        addr_eq(data.1, life.0)
+        addr_eq(data.1.as_ptr(), life.0)
     }
 
     fn is_life_bound(life: &Self::Life<'_>) -> bool {
@@ -64,7 +65,7 @@ impl Binding for Atomic {
     }
 
     fn is_data_bound<T: ?Sized>(data: &Self::Data<T>) -> bool {
-        bound(data.1)
+        bound(unsafe { data.1.as_ref() })
     }
 }
 
@@ -83,15 +84,18 @@ impl<T: ?Sized> Lich<T> {
 
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized>(
     value: &'a T,
-    slot: &'a mut u32,
+    location: &'a mut u32,
 ) -> Pair<'a, S> {
-    *slot = 1;
+    *location = 1;
     // # Safety
-    // `slot` is trivially valid as an `AtomicU32` and since it is a mutable
+    // `location` is trivially valid as an `AtomicU32` and since it is a mutable
     // borrow, it is exclusively owned by this function
-    let count = unsafe { AtomicU32::from_ptr(slot) };
-    let pointer = S::shroud(value);
-    (crate::Lich(Data(pointer, count)), crate::Soul(Life(count)))
+    let count = unsafe { AtomicU32::from_ptr(location) };
+    let pointer = unsafe { NonNull::new_unchecked(count as *const _ as *mut _) };
+    (
+        crate::Lich(Data(S::shroud(value), pointer)),
+        crate::Soul(Life(count)),
+    )
 }
 
 pub fn redeem<'a, T: ?Sized + 'a>(

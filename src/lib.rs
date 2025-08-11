@@ -201,8 +201,14 @@ mod fail {
         spawn(move || lich);
     });
 
-    fail!(can_not_create_default_lich, {
+    fail!(can_not_create_default_raw_lich, {
         use phylactery::raw::Lich;
-        Lich::<()>::default();
+        Lich::<dyn Fn()>::default();
+    });
+
+    #[cfg(feature = "atomic")]
+    fail!(can_not_create_default_atomic_lich, {
+        use phylactery::atomic::Lich;
+        Lich::<dyn Fn()>::default();
     });
 }
