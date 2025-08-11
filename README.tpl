@@ -76,7 +76,7 @@ Different variants exist with different tradeoffs:
 
 ###
 
-<p align="right"><em> thread_spawn_bridge.rs </em></p>
+<p align="right"><em> scoped_static_logger.rs </em></p>
 
 ```rust
 {% include "scoped_static_logger.rs" %}

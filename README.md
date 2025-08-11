@@ -122,7 +122,7 @@ fn main() {
 
 ###
 
-<p align="right"><em> thread_spawn_bridge.rs </em></p>
+<p align="right"><em> scoped_static_logger.rs </em></p>
 
 ```rust
 #![cfg(feature = "cell")]
