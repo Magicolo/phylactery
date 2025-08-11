@@ -102,6 +102,14 @@ macro_rules! lock_cell {
             let soul = redeem(lich1, soul).ok().flatten().unwrap();
             assert!(redeem(lich4, soul).ok().flatten().is_none());
         }
+
+        #[test]
+        fn can_create_default_lich() {
+            let lich = Lich::<()>::default();
+            assert!(!lich.try_sever().ok().unwrap());
+            let lich = Lich::<()>::default();
+            assert!(!lich.sever());
+        }
     };
 }
 

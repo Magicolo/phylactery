@@ -226,4 +226,9 @@ mod fail {
         let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
         spawn(move || lich);
     });
+
+    fail!(can_not_create_default_lich, {
+        use phylactery::raw::Lich;
+        Lich::<()>::default();
+    });
 }
