@@ -27,7 +27,7 @@ When `Soul<'a>` is dropped or when calling `Soul::sever`, it is guaranteed that 
 inaccessible from a remaining `Lich<T>`.
 
 Different variants exist with different tradeoffs:
-- `phylactery::raw`: 
+- `phylactery::raw`:
     - Zero cost (wraps a pointer in a new type).
     - Does *not* allocate heap memory.
     - Does require the `Lich<T>` to be `redeem`ed with its `Soul<'a>` (otherwise, `Lich<T>` and `Soul<'a>` **will** panic on drop).
@@ -35,7 +35,7 @@ Different variants exist with different tradeoffs:
     - `Lich<T>` can **not** be cloned.
     - Can be sent to other threads.
     - Can be used in `#[no_std]` contexts.
-- `phylactery::atomic`: 
+- `phylactery::atomic`:
     - Adds minimal overhead with an `AtomicU32` reference counter.
     - Does *not* allocate heap memory.
     - Does require an additional memory location (an `&mut u32`) to create the `Lich<T>/Soul<'a>` pair.
@@ -44,7 +44,7 @@ Different variants exist with different tradeoffs:
     - `Lich<T>` can be cloned.
     - Can be sent to other threads.
     - Can be used in `#[no_std]` contexts.
-- `phylactery::cell`: 
+- `phylactery::cell`:
     - Adds an indirection and minimal overhead using `Rc<RefCell>`.
     - Does allocate heap memory.
     - Allows for the use of the `Lich<T>/Soul<'a>::sever` methods.
