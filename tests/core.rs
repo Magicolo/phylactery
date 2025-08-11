@@ -4,17 +4,6 @@ use core::ops::Deref;
 macro_rules! lock_cell {
     () => {
         #[test]
-        fn redeem_fails_with_some() {
-            let function = || {};
-            let (lich1, soul1) = ritual::<_, dyn Fn()>(&function);
-            let (lich2, soul2) = ritual::<_, dyn Fn()>(&function);
-            let (lich1, soul2) = redeem(lich1, soul2).err().unwrap();
-            let (lich2, soul1) = redeem(lich2, soul1).err().unwrap();
-            assert!(redeem(lich1, soul1).ok().flatten().is_none());
-            assert!(redeem(lich2, soul2).ok().flatten().is_none());
-        }
-
-        #[test]
         fn can_sever_lich() {
             let function = || {};
             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
@@ -27,7 +16,7 @@ macro_rules! lock_cell {
             let function = || {};
             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
             assert!(soul.sever());
-            assert!(!lich.sever());
+            assert_eq!(lich.try_sever().ok(), Some(false));
         }
 
         #[test]
@@ -47,19 +36,11 @@ macro_rules! lock_cell {
         }
 
         #[test]
-        fn is_not_bound_after_lich_sever() {
-            let function = || {};
-            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-            assert!(lich.sever());
-            assert!(!soul.is_bound());
-        }
-
-        #[test]
-        fn is_not_bound_after_soul_sever() {
-            let function = || {};
-            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-            assert!(soul.sever());
-            assert!(!lich.is_bound());
+        fn can_create_default_lich() {
+            let lich = Lich::<()>::default();
+            assert!(!lich.try_sever().ok().unwrap());
+            let lich = Lich::<()>::default();
+            assert!(!lich.sever());
         }
 
         #[test]
@@ -82,9 +63,44 @@ macro_rules! lock_cell {
         }
 
         #[test]
+        fn is_not_bound_after_lich_sever() {
+            let function = || {};
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            assert!(lich.sever());
+            assert!(!soul.is_bound());
+        }
+
+        #[test]
+        fn is_not_bound_after_soul_sever() {
+            let function = || {};
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            assert!(soul.sever());
+            assert!(!lich.is_bound());
+        }
+    };
+}
+
+#[cfg(any(feature = "lock", feature = "cell", feature = "atomic"))]
+macro_rules! lock_cell_atomic {
+    ([$($location: ident)?]) => {
+        #[test]
+        fn redeem_fails_with_some() {
+            let function = || {};
+            $(let mut $location = 0;)?
+            let (lich1, soul1) = ritual::<_, dyn Fn()>(&function $(, &mut $location)?);
+            $(let mut $location = 0;)?
+            let (lich2, soul2) = ritual::<_, dyn Fn()>(&function $(, &mut $location)?);
+            let (lich1, soul2) = redeem(lich1, soul2).err().unwrap();
+            let (lich2, soul1) = redeem(lich2, soul1).err().unwrap();
+            assert!(redeem(lich1, soul1).ok().flatten().is_none());
+            assert!(redeem(lich2, soul2).ok().flatten().is_none());
+        }
+
+        #[test]
         fn can_clone_lich() {
             let function = || {};
-            let (lich1, soul) = ritual::<_, dyn Fn()>(&function);
+            $(let mut $location = 0;)?
+            let (lich1, soul) = ritual::<_, dyn Fn()>(&function $(, &mut $location)?);
             let lich2 = lich1.clone();
             let soul = redeem(lich1, soul).ok().flatten().unwrap();
             assert!(redeem(lich2, soul).ok().flatten().is_none());
@@ -93,7 +109,8 @@ macro_rules! lock_cell {
         #[test]
         fn can_redeem_in_any_order() {
             let function = || {};
-            let (lich1, soul) = ritual::<_, dyn Fn()>(&function);
+            $(let mut $location = 0;)?
+            let (lich1, soul) = ritual::<_, dyn Fn()>(&function $(, &mut $location)?);
             let lich2 = lich1.clone();
             let lich3 = lich2.clone();
             let lich4 = lich1.clone();
@@ -102,23 +119,16 @@ macro_rules! lock_cell {
             let soul = redeem(lich1, soul).ok().flatten().unwrap();
             assert!(redeem(lich4, soul).ok().flatten().is_none());
         }
-
-        #[test]
-        fn can_create_default_lich() {
-            let lich = Lich::<()>::default();
-            assert!(!lich.try_sever().ok().unwrap());
-            let lich = Lich::<()>::default();
-            assert!(!lich.sever());
-        }
     };
 }
 
-macro_rules! lock_raw {
-    ([$($safe: ident)?] [$($unwrap: ident)?] [$ok: expr]) => {
+macro_rules! lock_atomic_raw {
+    ([$($safe: ident)?] [$($unwrap: ident)?] [$ok: expr] [$($location: ident)?]) => {
         #[test]
         fn can_send_to_thread() {
             let function = || 'a';
-            let (lich, soul) = ritual::<_, dyn Fn() -> char + Send + Sync>(&function);
+            $(let mut $location = 0;)?
+            let (lich, soul) = ritual::<_, dyn Fn() -> char + Send + Sync>(&function $(, &mut $location)?);
             let lich = spawn(move || {
                 let lich = lich;
                 assert_eq!($($safe)? { lich.borrow() }$(.$unwrap())?(), 'a');
@@ -133,7 +143,8 @@ macro_rules! lock_raw {
         fn can_be_stored_as_static() {
             static LICH: Mutex<Option<Lich<dyn Fn() -> char + Send + Sync>>> = Mutex::new(None);
             let function = || 'a';
-            let (lich, soul) = ritual(&function);
+            $(let mut $location = 0;)?
+            let (lich, soul) = ritual(&function $(, &mut $location)?);
             assert!(LICH.lock().unwrap().replace(lich).is_none());
             assert_eq!(
                 $($safe)? { LICH.lock().unwrap().as_ref().unwrap().borrow() }$(.$unwrap())?(),
@@ -145,22 +156,25 @@ macro_rules! lock_raw {
     };
 }
 
-macro_rules! lock_cell_raw {
-    ([$($safe: ident)?] [$($unwrap: ident)?] [$ok: expr]) => {
+macro_rules! lock_cell_atomic_raw {
+    ([$($safe: ident)?] [$($unwrap: ident)?] [$ok: expr] [$($location: ident)?]) => {
         #[test]
         fn redeem_succeeds_with_none() {
             let function = || {};
-            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            $(let mut $location = 0;)?
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function $(, &mut $location)?);
             assert!($ok(redeem(lich, soul)));
         }
 
         #[test]
         fn chain_liches() {
             let function = || 'a';
-            let (lich1, soul1) = ritual::<_, dyn Fn() -> char>(&function);
+            $(let mut $location = 0;)?
+            let (lich1, soul1) = ritual::<_, dyn Fn() -> char>(&function $(, &mut $location)?);
             {
                 let guard = $($safe)? { lich1.borrow() }$(.$unwrap())?;
-                let (lich2, soul2) = ritual::<_, dyn Fn() -> char>(guard.deref());
+                $(let mut $location = 0;)?
+                let (lich2, soul2) = ritual::<_, dyn Fn() -> char>(guard.deref() $(, &mut $location)?);
                 assert_eq!($($safe)? { lich2.borrow() }$(.$unwrap())?(), 'a');
                 assert!($ok(redeem(lich2, soul2)));
             }
@@ -170,7 +184,8 @@ macro_rules! lock_cell_raw {
         #[test]
         fn is_bound() {
             let function = || {};
-            let (lich, soul) = ritual::<_, dyn Fn()>(&function);
+            $(let mut $location = 0;)?
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function $(, &mut $location)?);
             assert!(lich.is_bound());
             assert!(soul.is_bound());
             assert!($ok(redeem(lich, soul)));
@@ -184,9 +199,10 @@ mod lock {
     use phylactery::lock::{Lich, redeem, ritual};
     use std::{sync::Mutex, thread::spawn};
 
-    lock_cell_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()]);
+    lock_cell_atomic_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()][]);
+    lock_atomic_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()] []);
+    lock_cell_atomic!([]);
     lock_cell!();
-    lock_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()]);
 }
 
 #[cfg(feature = "cell")]
@@ -195,7 +211,8 @@ mod cell {
     use core::cell::RefCell;
     use phylactery::cell::{Lich, redeem, ritual};
 
-    lock_cell_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()]);
+    lock_cell_atomic_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()][]);
+    lock_cell_atomic!([]);
     lock_cell!();
 
     #[test]
@@ -225,13 +242,45 @@ mod cell {
     }
 }
 
+#[cfg(feature = "atomic")]
+mod atomic {
+    use super::*;
+    use phylactery::atomic::{Lich, redeem, ritual};
+    use std::{sync::Mutex, thread::spawn};
+
+    lock_cell_atomic_raw!([][][|result: Result<_, _>| result.is_ok()][location]);
+    lock_atomic_raw!([][][|result: Result<_, _>| result.is_ok()] [location]);
+    lock_cell_atomic!([location]);
+
+    #[test]
+    fn can_try_sever_lich() {
+        let function = || {};
+        let mut location = 0;
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function, &mut location);
+        let lich = lich.try_sever().err().unwrap();
+        let soul = soul.try_sever().err().unwrap();
+        drop(lich);
+        assert_eq!(soul.try_sever().ok(), Some(true));
+    }
+
+    #[test]
+    fn can_try_sever_soul() {
+        let function = || {};
+        let mut location = 0;
+        let (lich, soul) = ritual::<_, dyn Fn()>(&function, &mut location);
+        let soul = soul.try_sever().err().unwrap();
+        let lich = lich.try_sever().err().unwrap();
+        assert!(redeem(lich, soul).ok().flatten().is_none());
+    }
+}
+
 mod raw {
     use super::*;
     use phylactery::raw::{Lich, redeem, ritual};
     use std::{sync::Mutex, thread::spawn};
 
-    lock_cell_raw!([unsafe][][|result: Result<_, _>| result.is_ok()]);
-    lock_raw!([unsafe][][|result: Result<_, _>| result.is_ok()]);
+    lock_cell_atomic_raw!([unsafe][][|result: Result<_, _>| result.is_ok()][]);
+    lock_atomic_raw!([unsafe][][|result: Result<_, _>| result.is_ok()] []);
 
     #[test]
     fn redeem_succeeds_with_mixed() {

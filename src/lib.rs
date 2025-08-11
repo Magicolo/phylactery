@@ -1,10 +1,10 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "atomic")]
+pub mod atomic;
 #[cfg(feature = "cell")]
 pub mod cell;
-#[cfg(feature = "fat")]
-pub mod fat;
 #[cfg(feature = "lock")]
 pub mod lock;
 pub mod raw;
