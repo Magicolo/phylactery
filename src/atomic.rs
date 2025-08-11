@@ -34,7 +34,7 @@ impl<T: ?Sized> Clone for Data<T> {
 impl<T: ?Sized> Drop for Data<T> {
     fn drop(&mut self) {
         let atomic = unsafe { self.1.as_ref() };
-        if atomic.fetch_sub(1, Ordering::Relaxed) == 1 {
+        if atomic.fetch_sub(1, Ordering::Release) == 1 {
             wake_one(atomic);
         }
     }
@@ -107,7 +107,7 @@ pub fn redeem<'a, T: ?Sized + 'a>(
 
 fn sever<const WAIT: bool>(count: &AtomicU32) -> Option<bool> {
     loop {
-        match count.compare_exchange(0, u32::MAX, Ordering::Relaxed, Ordering::Relaxed) {
+        match count.compare_exchange(0, u32::MAX, Ordering::Acquire, Ordering::Relaxed) {
             Ok(0) => break Some(true),
             Ok(u32::MAX) | Err(u32::MAX) => break Some(false),
             Ok(value) | Err(value) if WAIT => wait(count, value),
@@ -117,6 +117,6 @@ fn sever<const WAIT: bool>(count: &AtomicU32) -> Option<bool> {
 }
 
 fn bound(count: &AtomicU32) -> bool {
-    let count = count.load(Ordering::Relaxed);
+    let count = count.load(Ordering::Acquire);
     count > 0 && count < u32::MAX
 }
