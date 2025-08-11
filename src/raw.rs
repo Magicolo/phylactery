@@ -1,4 +1,4 @@
-use crate::{Bind, Sever, shroud::Shroud};
+use crate::{Binding, Sever, TrySever, shroud::Shroud};
 use core::{
     marker::PhantomData,
     ptr::{self, NonNull},
@@ -8,18 +8,17 @@ pub struct Raw;
 
 pub type Soul<'a> = crate::Soul<'a, Raw>;
 pub type Lich<T> = crate::Lich<T, Raw>;
-pub type Guard<'a, T> = crate::Guard<'a, T, Raw>;
-pub type RedeemResult<'a, T> = Result<(), (Lich<T>, Soul<'a>)>;
+pub type Pair<'a, T> = crate::Pair<'a, T, Raw>;
 
-unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where &'a T: Send {}
-unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where &'a T: Sync {}
+unsafe impl<'a, T: ?Sized + 'a> Send for Data<T> where &'a T: Send {}
+unsafe impl<'a, T: ?Sized + 'a> Sync for Data<T> where &'a T: Sync {}
 
 pub struct Data<T: ?Sized>(NonNull<T>);
 pub struct Life<'a>(NonNull<()>, PhantomData<&'a ()>);
 
-impl<T: ?Sized> Sever for Data<T> {
-    fn sever(&mut self) -> bool {
-        sever_panic()
+impl<T: ?Sized> TrySever for Data<T> {
+    fn try_sever(&mut self) -> Option<bool> {
+        Some(sever_panic())
     }
 }
 
@@ -29,17 +28,9 @@ impl Sever for Life<'_> {
     }
 }
 
-impl Bind for Raw {
+impl Binding for Raw {
     type Data<T: ?Sized> = Data<T>;
     type Life<'a> = Life<'a>;
-    type Refer<'a, T: ?Sized + 'a> = &'a T;
-
-    fn bind<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(
-        value: &'a T,
-    ) -> (Self::Data<S>, Self::Life<'a>) {
-        let pointer = S::shroud(value);
-        (Data(pointer), Life(pointer.cast(), PhantomData))
-    }
 
     /// This function can return false positives if the same `&'a T` is bound
     /// twice and the `Self::Data<T>` of the first binding is checked against
@@ -71,8 +62,12 @@ impl<T: ?Sized> Lich<T> {
 
 /// Splits the provided `&'a T` into a [`Lich<S>`] and [`Soul<'a>`] pair that
 /// are bound together where `S` is some trait that implements [`Shroud<T>`].
-pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (Lich<S>, Soul<'a>) {
-    crate::ritual(value)
+pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
+    let pointer = S::shroud(value);
+    (
+        crate::Lich(Data(pointer)),
+        crate::Soul(Life(pointer.cast(), PhantomData)),
+    )
 }
 
 /// Safely disposes of a [`Lich<T>`] and a [`Soul<'a>`] that were bound together
@@ -92,7 +87,7 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (
 /// [`redeem`]ed, otherwise `Err((lich, soul))`. Note that the [`Lich<T>`] and
 /// the [`Soul<'a>`] contained in the error will panic on drop and therefore
 /// must be properly [`redeem`]ed.
-pub fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> RedeemResult<'a, T> {
+pub fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> Result<(), Pair<'a, T>> {
     crate::redeem::<_, _, false>(lich, soul).map(|_| {})
 }
 

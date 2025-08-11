@@ -227,11 +227,11 @@ mod cell {
 
 mod raw {
     use super::*;
-    use phylactery::raw::{Lich, RedeemResult, redeem, ritual};
+    use phylactery::raw::{Lich, redeem, ritual};
     use std::{sync::Mutex, thread::spawn};
 
-    lock_cell_raw!([unsafe][][|result: RedeemResult<_>| result.is_ok()]);
-    lock_raw!([unsafe][][|result: RedeemResult<_>| result.is_ok()]);
+    lock_cell_raw!([unsafe][][|result: Result<_, _>| result.is_ok()]);
+    lock_raw!([unsafe][][|result: Result<_, _>| result.is_ok()]);
 
     #[test]
     fn redeem_succeeds_with_mixed() {
@@ -246,7 +246,7 @@ mod raw {
 
     #[test]
     #[should_panic]
-    fn panics_when_lich_is_dropped() {
+    fn panics_when_lich_drops() {
         let function = || {};
         let (lich, soul) = ritual::<_, dyn Fn()>(&function);
         drop(lich);
@@ -255,7 +255,7 @@ mod raw {
 
     #[test]
     #[should_panic]
-    fn panics_when_soul_is_dropped() {
+    fn panics_when_soul_drops() {
         let function = || {};
         let (lich, soul) = ritual::<_, dyn Fn()>(&function);
         drop(soul);
@@ -264,16 +264,7 @@ mod raw {
 
     #[test]
     #[should_panic]
-    fn panics_when_lich_is_severed() {
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-        lich.sever();
-        drop(soul);
-    }
-
-    #[test]
-    #[should_panic]
-    fn panics_when_soul_is_severed() {
+    fn panics_when_soul_severs() {
         let function = || {};
         let (lich, soul) = ritual::<_, dyn Fn()>(&function);
         soul.sever();
@@ -282,19 +273,10 @@ mod raw {
 
     #[test]
     #[should_panic]
-    fn panics_with_lich_try_sever() {
+    fn panics_when_lich_try_severs() {
         let function = || {};
         let (lich, soul) = ritual::<_, dyn Fn()>(&function);
         drop(lich.try_sever());
         drop(soul);
-    }
-
-    #[test]
-    #[should_panic]
-    fn panics_with_soul_try_sever() {
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-        drop(soul.try_sever());
-        drop(lich);
     }
 }
