@@ -173,21 +173,21 @@ macro_rules! lock_cell_raw {
 #[cfg(feature = "lock")]
 mod lock {
     use super::*;
-    use phylactery::lock::{Lich, RedeemResult, redeem, ritual};
+    use phylactery::lock::{Lich, redeem, ritual};
     use std::{sync::Mutex, thread::spawn};
 
-    lock_cell_raw!([][unwrap][|result: RedeemResult<_>| result.ok().flatten().is_none()]);
+    lock_cell_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()]);
     lock_cell!();
-    lock_raw!([][unwrap][|result: RedeemResult<_>| result.ok().flatten().is_none()]);
+    lock_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()]);
 }
 
 #[cfg(feature = "cell")]
 mod cell {
     use super::*;
     use core::cell::RefCell;
-    use phylactery::cell::{Lich, RedeemResult, redeem, ritual};
+    use phylactery::cell::{Lich, redeem, ritual};
 
-    lock_cell_raw!([][unwrap][|result: RedeemResult<_>| result.ok().flatten().is_none()]);
+    lock_cell_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()]);
     lock_cell!();
 
     #[test]

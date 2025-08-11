@@ -10,7 +10,6 @@ pub struct Cell;
 pub type Soul<'a> = crate::Soul<'a, Cell>;
 pub type Lich<T> = crate::Lich<T, Cell>;
 pub type Guard<'a, T> = crate::Guard<'a, T, Cell>;
-pub type RedeemResult<'a, T> = crate::RedeemResult<'a, T, Cell>;
 
 unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where Rc<RefCell<Option<&'a T>>>: Send {}
 unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where Rc<RefCell<Option<&'a T>>>: Sync {}
@@ -94,6 +93,9 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> (
 /// [`ritual`] and [`redeem`]ed. The [`Soul<'a>`] will be returned if more
 /// instances of [`Lich<T>`] remain to allow them to be [`redeem`]ed. Otherwise
 /// returns `Err((lich, soul))` such that they can be properly [`redeem`]ed.
-pub fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> RedeemResult<'a, T> {
+pub fn redeem<'a, T: ?Sized + 'a>(
+    lich: Lich<T>,
+    soul: Soul<'a>,
+) -> Result<Option<Soul<'a>>, (Lich<T>, Soul<'a>)> {
     crate::redeem(lich, soul, true)
 }

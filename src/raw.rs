@@ -62,7 +62,8 @@ impl Bind for Raw {
 impl<T: ?Sized> Lich<T> {
     /// # Safety
     /// The caller must ensure that the associated [`Soul<'a>`] has not been
-    /// dropped otherwise, this is undefined behavior.
+    /// dropped and lives for whole duration of the borrow. Otherwise, this may
+    /// result in a *use after free*.
     pub unsafe fn borrow(&self) -> &T {
         unsafe { self.0.0.as_ref() }
     }
