@@ -77,7 +77,7 @@ Different variants exist with different tradeoffs:
 #[cfg(feature = "lock")]
 pub mod thread_spawn_bridge {
     use core::num::NonZeroUsize;
-    use phylactery::lock::{Soul, ritual};
+    use phylactery::lock::{ritual, Soul};
     use std::thread;
 
     pub fn broadcast<F: Fn(usize) + Send + Sync>(
@@ -133,7 +133,7 @@ fn main() {
 pub mod scoped_static_logger {
     use core::{cell::RefCell, fmt::Display};
     use phylactery::{
-        cell::{Lich, redeem, ritual},
+        cell::{redeem, ritual, Lich},
         shroud,
     };
 

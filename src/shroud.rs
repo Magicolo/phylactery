@@ -1,9 +1,44 @@
+//! The [`Shroud<T>`] trait and the associated [`crate::shroud!`] macro are the
+//! core of this library's lifetime extension mechanism. They provide a way to
+//! erase the lifetime of a reference by converting it into a raw pointer or a
+//! dynamic trait, which can then be safely managed by a [`crate::Lich<T, B>`]
+//! and [`crate::Soul<'a, B>`] pair.
+
 use core::ptr::NonNull;
 
+/// A trait for erasing the lifetime of a reference and converting it to a
+/// dynamic trait pointer.
+///
+/// Note that it is already implemented for `Fn(T0, .., T7) -> T` and its
+/// combinations with [`Send`], [`Sync`] and [`Unpin`].
+///
+/// See the [`crate::shroud!`] macro for convenient implementation.
 pub trait Shroud<T: ?Sized> {
     fn shroud(from: &T) -> NonNull<Self>;
 }
 
+/// A convenience macro to implement the [`Shroud<T>`] trait for a given trait.
+/// It can also handle implementing [`Shroud<T>`] for all combinations of
+/// [`Send`], [`Sync`] and [`Unpin`] (ex: `dyn Trait + Send `, `dyn Trait +
+/// Sync`, `dyn Trait + Send + Sync`, etc.).
+///
+///
+/// # Usage
+///
+/// The [`crate::shroud!`] macro is used to implement the [`Shroud<T>`] trait
+/// for a target trait object.
+///
+/// ```
+/// use phylactery::shroud;
+///
+/// pub trait Trait1 { }
+/// pub trait Trait2 { }
+///
+/// // This implements `shroud::Shroud<T: Trait1> for dyn Trait1`.
+/// shroud!(Trait1);
+/// // This implements `shroud::Shroud<T: Trait2> for dyn Trait2` with all combinations of `Send`, `Sync` and `Unpin`.
+/// shroud!(Trait2+);
+/// ```
 #[macro_export]
 macro_rules! shroud {
     ($type: ident) => {

@@ -1,3 +1,9 @@
+//! `Arc<RwLock<T>>`-based, allocation-using, thread-safe, [`Clone`]able,
+//! lifetime extension using a reference counter.
+//!
+//! This module provides the [`Lock`] [`Binding`] implementation, which uses an
+//! [`Arc<RwLock<T>>`] as a reference counter to track the number of active
+//! [`Lich<T>`] clones/borrows.
 use crate::{Binding, Sever, TrySever, shroud::Shroud};
 use core::{
     ops::Deref,
@@ -6,7 +12,6 @@ use core::{
 use std::sync::{Arc, RwLock, RwLockReadGuard, TryLockError, Weak};
 
 pub struct Lock;
-
 pub type Soul<'a> = crate::Soul<'a, Lock>;
 pub type Lich<T> = crate::Lich<T, Lock>;
 pub type Pair<'a, T> = crate::Pair<'a, T, Lock>;
@@ -81,8 +86,17 @@ impl Binding for Lock {
 }
 
 impl<T: ?Sized> Lich<T> {
-    /// Borrowing may fail if the `Soul<'a>` has been dropped/severed.
-    /// Returns a `Guard<'a, T>` that tracks the borrow.
+    /// Borrows the wrapped data, returning a [`Guard<T>`] if successful.
+    ///
+    /// This method will return [`Some<Guard<T>>`] if the data is available and
+    /// not already exclusively locked. The returned [`Guard`] provides
+    /// immutable, thread-safe access to the data.
+    ///
+    /// It will return [`None`] if:
+    /// - The link to the [`Soul<'a>`] has been severed (e.g., [`Soul::sever`]
+    ///   was called or the [`Soul<'a>`] was dropped).
+    /// - The underlying [`RwLock`] is already exclusively locked for writing
+    ///   (which can happen during [`Sever::sever`] or [`redeem`]).
     pub fn borrow(&self) -> Option<Guard<'_, T>> {
         // `try_read` can be used here because only the `sever` operation takes a
         // `write` lock, at which point, the value must not be observable
@@ -101,8 +115,8 @@ impl<T: ?Sized> Deref for Guard<'_, T> {
     fn deref(&self) -> &T {
         // # Safety
         // The `Option<NonNull<T>>` can only be `Some` as per the check in
-        // `Lich<T>::borrow` and could not have been swapped for `None` since it is
-        // protected by its corresponding `RwLockReadGuard` guard.
+        // `Lich<T>::borrow` and could not have been swapped for `None` since it
+        // is protected by its corresponding `RwLockReadGuard` guard.
         unsafe { self.0.as_ref().unwrap_unchecked().as_ref() }
     }
 }
@@ -113,26 +127,28 @@ impl<T: ?Sized> AsRef<T> for Guard<'_, T> {
     }
 }
 
-/// Splits the provided `&'a T` into a [`Lich<S>`] and [`Soul<'a>`] pair that
-/// are bound together where `S` is some trait that implements [`Shroud<T>`].
+/// Creates a `lock` [`Lich<T, Lock>`] and [`Soul<'a, Lock>`] pair from a
+/// reference.
+///
+/// This function allocates an `Arc<RwLock<...>>` on the heap to manage the
+/// reference and its borrow state in a thread-safe way.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
     let data = Arc::new(RwLock::new(Some(S::shroud(value))));
     let life = Arc::downgrade(&data);
     (crate::Lich(Data(data)), crate::Soul(Life(life)))
 }
 
-/// Disposes of a [`Lich<T>`] and a [`Soul<'a>`] that were bound together by the
-/// same [`ritual`].
+/// Safely disposes of a [`Lich<T>`] and [`Soul<'a>`] pair.
 ///
-/// While it is not strictly necessary for the [`Cell`] variant to use this call
-/// since is safe to simply let the [`Lich<T>`] or the [`Soul<'a>`] be dropped,
-/// it is considered good practice to ensure consistent usage across all
-/// variants and to convince oneself that no borrow remain alive.
+/// If the provided [`Lich<T>`] and [`Soul<'a>`] are bound together, they are
+/// consumed and [`Ok`] is returned with the [`Soul<'a>`] if there are other
+/// live [`Lich<T>`] clones. If they are not bound together, [`Err`] is returned
+/// with the pair.
 ///
-/// Returns `Ok(..)` if the [`Lich<T>`] and [`Soul<'a>`] were bound by the same
-/// [`ritual`] and [`redeem`]ed. The [`Soul<'a>`] will be returned if more
-/// instances of [`Lich<T>`] remain to allow them to be [`redeem`]ed. Otherwise
-/// returns `Err((lich, soul))` such that they can be properly [`redeem`]ed.
+/// If the [`Lich<T>`] and [`Soul<'a>`] are simply dropped, the [`Soul<'a>`]'s
+/// [`Drop`] implementation will block until all remaining [`Lich<T>::borrow`]
+/// [`Guard`]s are dropped, ensuring safety. While not strictly necessary,
+/// using [`redeem`] is good practice for explicit cleanup.
 pub fn redeem<'a, T: ?Sized + 'a>(
     lich: Lich<T>,
     soul: Soul<'a>,

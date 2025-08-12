@@ -16,14 +16,31 @@ pub trait Binding {
     type Data<T: ?Sized>: TrySever;
     type Life<'a>: Sever;
 
-    /// Checks whether the `Self::Data<T>` and `Self::Life<'a>` have been
-    /// bound together with the same `Self::bind` call.
     fn are_bound<T: ?Sized>(data: &Self::Data<T>, life: &Self::Life<'_>) -> bool;
     fn is_life_bound(life: &Self::Life<'_>) -> bool;
     fn is_data_bound<T: ?Sized>(data: &Self::Data<T>) -> bool;
 }
 
+/// The lifetime-bound part of a [`Lich<T, B>`] and [`Soul<'a, B>`] pair.
+///
+/// A [`Soul<'a, B>`] is a RAII guard that tracks the lifetime `'a` of the
+/// original reference. When the [`Soul<'a, B>`] is dropped, it guarantees that
+/// any associated [`Lich<T, B>`] can no longer access the reference, preventing
+/// `use-after-free` errors.
+///
+/// The exact behavior on drop depends on the binding variant (e.g., `raw`
+/// will [`panic!`] if not redeemed, `atomic` will block, etc.).
 pub struct Soul<'a, B: Binding + ?Sized>(pub(crate) B::Life<'a>);
+
+/// The `'static` part of a [`Lich<T, B>`] and [`Soul<'a, B>`] pair.
+///
+/// A [`Lich<T, B>`] is a handle that can be safely sent across `'static`
+/// boundaries, even though it refers to a value with a shorter lifetime. It
+/// holds the type-erased reference and relies on its corresponding
+/// [`Soul<'a, B>`] to ensure it does not outlive the data it points to.
+///
+/// Accessing the underlying data is typically done via a `borrow` method, whose
+/// behavior varies depending on the binding variant.
 pub struct Lich<T: ?Sized, B: Binding + ?Sized>(pub(crate) B::Data<T>);
 pub type Pair<'a, T, B> = (Lich<T, B>, Soul<'a, B>);
 
@@ -53,36 +70,76 @@ impl<T> TrySever for Option<T> {
 }
 
 impl<T: ?Sized, B: Binding + ?Sized> Lich<T, B> {
+    /// Checks if the [`Lich<T, B>`] is still bound to a [`Soul<'a, B>`].
+    ///
+    /// The connection can be broken by dropping the [`Soul<'a, B>`], or by
+    /// calling [`Soul::sever`] on it.
     pub fn is_bound(&self) -> bool {
         B::is_data_bound(&self.0)
     }
 }
 
 impl<T: ?Sized, B: Binding + ?Sized> Lich<T, B> {
+    /// Attempts to sever the binding between this [`Lich<T, B>`] (and clones)
+    /// and its/their [`Soul<'a, B>`].
+    ///
+    /// Returns `Ok(true)` if the connection was severed, `Ok(false)` if if
+    /// was already severed and `Err(self)` if the operation failed. Failure
+    /// conditions will vary based on the variant.
     pub fn try_sever(mut self) -> Result<bool, Self> {
         self.0.try_sever().ok_or(self)
     }
 }
 
 impl<T: ?Sized, B: Binding<Data<T>: Sever> + ?Sized> Lich<T, B> {
+    /// Severs the binding between this [`Lich<T, B>`] (and clones) and
+    /// its/their [`Soul<'a, B>`].
+    ///
+    /// This method is only available on bindings where the [`Lich<T, B>`] can
+    /// be forcefully severed, like `cell` and `lock`.
+    ///
+    /// Returns `true` if the connection was severed, `false` if it was already
+    /// severed.
     pub fn sever(mut self) -> bool {
         self.0.sever()
     }
 }
 
 impl<B: Binding + ?Sized> Soul<'_, B> {
+    /// Severs the binding between this [`Soul<'a, B>`] and its
+    /// [`Lich<T, B>`]es.
+    ///
+    /// This consumes the [`Soul<'a, B>`] and makes the corresponding
+    /// [`Lich<T, B>`] unable to access the underlying data.
+    ///
+    /// Returns `true` if the connection was severed, `false` if it was already
+    /// severed.
     pub fn sever(mut self) -> bool {
         self.0.sever()
     }
 }
 
 impl<'a, B: Binding<Life<'a>: TrySever> + ?Sized> Soul<'a, B> {
+    /// Attempts to sever the binding between this [`Soul<'a, B>`] and its
+    /// [`Lich<T, B>`]es.
+    ///
+    /// This consumes the [`Soul<'a, B>`] and makes the corresponding
+    /// [`Lich<T, B>`] unable to access the underlying data.
+    ///
+    /// Returns `Ok(true)` if the connection was severed, `Ok(false)` if if
+    /// was already severed and `Err(self)` if the operation failed. Failure
+    /// conditions will vary based on the variant.
     pub fn try_sever(mut self) -> Result<bool, Self> {
         self.0.try_sever().ok_or(self)
     }
 }
 
 impl<B: Binding + ?Sized> Soul<'_, B> {
+    /// Checks if the [`Soul<'a, B>`] is still bound to at least a
+    /// [`Lich<T, B>`].
+    ///
+    /// The connection can be broken by dropping the [`Soul<'a, B>`], calling
+    /// [`Soul::sever`] on it.
     pub fn is_bound(&self) -> bool {
         B::is_life_bound(&self.0)
     }
@@ -141,8 +198,8 @@ mod fail {
     }
 
     fail!(can_not_drop_while_soul_lives, {
-        use crate::raw::ritual;
         use core::cell::RefCell;
+        use phylactery::raw::ritual;
 
         let value = String::new();
         let cell = RefCell::new(value);

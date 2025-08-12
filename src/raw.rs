@@ -1,3 +1,12 @@
+//! Zero-cost, `unsafe`, allocation-free, thread-safe,`#[no_std]`-compatible
+//! lifetime extension.
+//!
+//! This module provides the [`Raw`] [`Binding`] implementation, which is the
+//! most performant but also the most dangerous variant. It offers a zero-cost
+//! abstraction, meaning it introduces no heap allocations or reference counting
+//! overhead. The [`Lich<T>`] and [`Soul<'a>`] are simple new type wrappers
+//! around raw pointers.
+
 use crate::{Binding, Sever, TrySever, shroud::Shroud};
 use core::{
     marker::PhantomData,
@@ -5,16 +14,14 @@ use core::{
 };
 
 pub struct Raw;
-
 pub type Soul<'a> = crate::Soul<'a, Raw>;
 pub type Lich<T> = crate::Lich<T, Raw>;
 pub type Pair<'a, T> = crate::Pair<'a, T, Raw>;
+pub struct Data<T: ?Sized>(NonNull<T>);
+pub struct Life<'a>(NonNull<()>, PhantomData<&'a ()>);
 
 unsafe impl<'a, T: ?Sized + 'a> Send for Data<T> where &'a T: Send {}
 unsafe impl<'a, T: ?Sized + 'a> Sync for Data<T> where &'a T: Sync {}
-
-pub struct Data<T: ?Sized>(NonNull<T>);
-pub struct Life<'a>(NonNull<()>, PhantomData<&'a ()>);
 
 impl<T: ?Sized> TrySever for Data<T> {
     fn try_sever(&mut self) -> Option<bool> {
@@ -52,16 +59,24 @@ impl Binding for Raw {
 
 impl<T: ?Sized> Lich<T> {
     /// # Safety
-    /// The caller must ensure that the associated [`Soul<'a>`] has not been
-    /// dropped and lives for whole duration of the borrow. Otherwise, this may
-    /// result in a *use after free*.
+    ///
+    /// The caller must ensure that the corresponding [`Soul<'a>`] is still
+    /// alive and in scope. Dropping the [`Soul<'a>`] while this borrow is
+    /// active will invalidate the pointer, leading to a **use-after-free**
+    /// vulnerability.
+    ///
+    /// The [`Raw`] variant offers no runtime checks to prevent this. It is the
+    /// caller's responsibility to uphold this safety contract.
     pub unsafe fn borrow(&self) -> &T {
         unsafe { self.0.0.as_ref() }
     }
 }
 
-/// Splits the provided `&'a T` into a [`Lich<S>`] and [`Soul<'a>`] pair that
-/// are bound together where `S` is some trait that implements [`Shroud<T>`].
+/// Binds the lifetime of `value` to a [`Lich<T>`] and [`Soul<'a>`] pair.
+///
+/// The returned [`Lich<T>`] and [`Soul<'a>`] are intrinsically
+/// linked. They will both [`panic`] on drop and must be sent to [`redeem`] to
+/// be disposed.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
     let pointer = S::shroud(value);
     (
@@ -70,23 +85,14 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> P
     )
 }
 
-/// Safely disposes of a [`Lich<T>`] and a [`Soul<'a>`] that were bound together
-/// by a [`ritual`]. Without this call, the [`Lich<T>`] and the [`Soul<'a>`]
-/// will panic on drop.
+/// Safely disposes of a [`Lich<T>`] and [`Soul<'a>`] pair.
 ///
-/// Contrarily to other [`Bind`]ings this call to [`redeem`] may surprisingly
-/// accept a [`Lich<T>`] and a [`Soul<'a>`] that refer to the same `&'a T` but
-/// that have not been bound by the same [`ritual`] since the internal check
-/// uses a simple address comparison. This will not lead to undefined behavior
-/// since the other [`Lich<T>`]es and [`Soul<'a>`]s have a 1 to 1 counterpart
-/// and must still each be [`redeem`]ed. This is by design of the zero cost
-/// [`Raw`] variant since a more robust mechanism would incur a
-/// performance/memory cost.
+/// This function is **required** for the [`Raw`] variant. It safely disposes of
+/// the pair, preventing their [`Drop`] implementations from [`panic`]king.
 ///
-/// Returns `Ok(())` if the [`Lich<T>`] and [`Soul<'a>`] were bound together and
-/// [`redeem`]ed, otherwise `Err((lich, soul))`. Note that the [`Lich<T>`] and
-/// the [`Soul<'a>`] contained in the error will panic on drop and therefore
-/// must be properly [`redeem`]ed.
+/// If the provided [`Lich<T>`] and [`Soul<'a>`] are bound together, they are
+/// consumed and [`Ok`] is returned. If they are not bound together, [`Err`] is
+/// returned with the pair.
 pub fn redeem<'a, T: ?Sized + 'a>(lich: Lich<T>, soul: Soul<'a>) -> Result<(), Pair<'a, T>> {
     crate::redeem::<_, _, false>(lich, soul).map(|_| {})
 }

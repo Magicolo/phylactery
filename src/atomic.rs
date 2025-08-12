@@ -1,3 +1,13 @@
+//! `unsafe`-free, allocation-free, thread-safe, [`Clone`]able,
+//! `#[no_std]`-compatible lifetime extension using an [`AtomicU32`] reference
+//! counter.
+//!
+//! This module provides the [`Atomic`] [`Binding`] implementation, which uses
+//! an [`AtomicU32`] as a reference counter to track the number of active
+//! [`Lich<T>`] clones. It does not require heap allocation, but it does require
+//! the user to provide a mutable reference to a `u32` to use as the reference
+//! counter.
+
 use crate::{Binding, Sever, TrySever, shroud::Shroud};
 use atomic_wait::{wait, wake_one};
 use core::{
@@ -7,11 +17,9 @@ use core::{
 };
 
 pub struct Atomic;
-
 pub type Soul<'a> = crate::Soul<'a, Atomic>;
 pub type Lich<T> = crate::Lich<T, Atomic>;
 pub type Pair<'a, T> = crate::Pair<'a, T, Atomic>;
-
 pub struct Data<T: ?Sized>(NonNull<T>, NonNull<AtomicU32>);
 pub struct Life<'a>(&'a AtomicU32);
 
@@ -76,21 +84,29 @@ impl<T: ?Sized> Borrow<T> for Lich<T> {
 }
 
 impl<T: ?Sized> Lich<T> {
+    /// This borrow is safe and always succeeds because the [`Soul<'a>`]'s
+    /// [`Drop`] implementation will block until all [`Lich<T>`] clones (and
+    /// therefore all borrows) are gone.
     #[allow(clippy::should_implement_trait)]
     pub fn borrow(&self) -> &T {
         unsafe { self.0.0.as_ref() }
     }
 }
 
+/// Binds the lifetime of `value` to a [`Lich<T>`] and [`Soul<'a>`] pair, using
+/// the provided `location` as storage for the reference count.
+///
+/// The `location` must have a lifetime `'a` that is at least as long as the
+/// `value`'s borrow. It will be initialized to `1` and may end with any value.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized>(
     value: &'a T,
     location: &'a mut u32,
 ) -> Pair<'a, S> {
     *location = 1;
     // # Safety
-    // `location` is trivially valid as an `AtomicU32` and since it is a mutable
-    // borrow, it is exclusively owned by this function
-    let count = unsafe { AtomicU32::from_ptr(location) };
+    // `location` is trivially valid as an `AtomicU32` and since it is a
+    // mutable borrow, it is exclusively owned by this function
+    let count = unsafe { core::sync::atomic::AtomicU32::from_ptr(location) };
     let pointer = unsafe { NonNull::new_unchecked(count as *const _ as *mut _) };
     (
         crate::Lich(Data(S::shroud(value), pointer)),
@@ -98,6 +114,17 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized>(
     )
 }
 
+/// Safely disposes of a [`Lich<T>`] and [`Soul<'a>`] pair.
+///
+/// If the provided [`Lich<T>`] and [`Soul<'a>`] are bound together, they are
+/// consumed and [`Ok`] is returned with the [`Soul<'a>`] if there are other
+/// live [`Lich<T>`] clones. If they are not bound together, [`Err`] is returned
+/// with the pair.
+///
+/// If the [`Lich<T>`] and [`Soul<'a>`] are simply dropped, the [`Soul<'a>`]'s
+/// [`Drop`] implementation will block until all [`Lich<T>`] clones are dropped,
+/// ensuring safety. While not strictly necessary, using [`redeem`] is good
+/// practice for explicit cleanup.
 pub fn redeem<'a, T: ?Sized + 'a>(
     lich: Lich<T>,
     soul: Soul<'a>,

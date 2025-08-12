@@ -1,5 +1,5 @@
 use phylactery::{
-    raw::{Lich, Soul, redeem, ritual},
+    raw::{redeem, ritual, Lich, Soul},
     shroud,
 };
 

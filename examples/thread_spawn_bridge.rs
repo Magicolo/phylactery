@@ -5,7 +5,7 @@
 #[cfg(feature = "lock")]
 pub mod thread_spawn_bridge {
     use core::num::NonZeroUsize;
-    use phylactery::lock::{Soul, ritual};
+    use phylactery::lock::{ritual, Soul};
     use std::thread;
 
     pub fn broadcast<F: Fn(usize) + Send + Sync>(

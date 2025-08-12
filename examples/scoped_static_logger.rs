@@ -4,7 +4,7 @@
 pub mod scoped_static_logger {
     use core::{cell::RefCell, fmt::Display};
     use phylactery::{
-        cell::{Lich, redeem, ritual},
+        cell::{redeem, ritual, Lich},
         shroud,
     };
 
