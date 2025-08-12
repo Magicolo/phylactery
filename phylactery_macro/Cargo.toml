@@ -15,7 +15,8 @@ rust-version = "1.79.0"
 proc-macro = true
 
 [dependencies]
-syn = { version = "2.0.104", features = [
+syn = { version = "2.0.104", default-features = false, features = [
+    "clone-impls",
     "proc-macro",
     "parsing",
     "full",
