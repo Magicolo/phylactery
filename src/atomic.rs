@@ -1,84 +1,26 @@
-//! `unsafe`-free, `#[no_std]`-compatible lifetime extension using atomics.
+//! `unsafe`-free, allocation-free, thread-safe, [`Clone`]able,
+//! `#[no_std]`-compatible lifetime extension using an [`AtomicU32`] reference
+//! counter.
 //!
-//! This module provides the `atomic` binding, which uses an
-//! [`AtomicU32`] as a reference counter to track
-//! the number of active [`Lich<T, Atomic>`] clones. It does not require heap
-//! allocation, but it does require the user to provide a mutable reference to a
-//! `u32` to store the counter.
-//!
-//! # Trade-offs
-//!
-//! - **Pros:**
-//!   - `unsafe`-free public API.
-//!   - `#[no_std]` compatible (with the `atomic-wait` feature).
-//!   - [`Lich<T, Atomic>`] can be cloned.
-//!   - Can be sent to other threads.
-//! - **Cons:**
-//!   - Requires the user to provide an `&'a mut u32` for storage.
-//!   - If the [`Soul<'a, Atomic>`] is dropped while [`Lich<T, Atomic>`] clones
-//!     still exist, the [`Soul<'a, Atomic>`]'s drop implementation will block
-//!     until all [`Lich<T, Atomic>`] clones are dropped, which can lead to
-//!     deadlocks.
-//!
-//! # Usage
-//!
-//! ```
-//! use phylactery::{shroud, atomic::{ritual, redeem}};
-//!
-//! pub trait Trait: Send + Sync {
-//!     fn do_it(&self);
-//! }
-//! shroud!(Trait +);
-//!
-//! struct Foo(i32);
-//! impl Trait for Foo {
-//!     fn do_it(&self) {
-//!         println!("Value is: {}", self.0);
-//!     }
-//! }
-//!
-//! let foo = Foo(42);
-//!
-//! // A counter is required for the atomic variant.
-//! let mut count = 0;
-//! let (lich, soul) = ritual::<_, dyn Trait>(&foo, &mut count);
-//!
-//! let lich_clone = lich.clone();
-//! std::thread::spawn(move || {
-//!     let f = lich_clone.borrow();
-//!     f.do_it();
-//! }).join().unwrap();
-//!
-//! let f = lich.borrow();
-//! f.do_it();
-//!
-//! // It's good practice to redeem the pair, though not strictly required
-//! // unless you need to handle the Soul explicitly.
-//! redeem(lich, soul).ok().unwrap();
-//! ```
-use crate::{shroud::Shroud, Binding, Sever, TrySever};
+//! This module provides the [`Atomic`] [`Binding`] implementation, which uses
+//! an [`AtomicU32`] as a reference counter to track the number of active
+//! [`Lich<T>`] clones. It does not require heap allocation, but it does require
+//! the user to provide a mutable reference to a `u32` to use as the reference
+//! counter.
+
+use crate::{Binding, Sever, TrySever, shroud::Shroud};
 use atomic_wait::{wait, wake_one};
 use core::{
     borrow::Borrow,
-    ptr::{addr_eq, NonNull},
+    ptr::{NonNull, addr_eq},
     sync::atomic::{AtomicU32, Ordering},
 };
 
-/// The `atomic` `Binding` variant.
-///
-/// See the [module-level documentation](self) for more details.
 pub struct Atomic;
-
-/// A [`Soul<'a, B>`](crate::Soul) bound to the `atomic` variant.
 pub type Soul<'a> = crate::Soul<'a, Atomic>;
-/// A [`Lich<T, B>`](crate::Lich) bound to the `atomic` variant.
 pub type Lich<T> = crate::Lich<T, Atomic>;
-/// A [`Pair<'a, T, B>`](crate::Pair) bound to the `atomic` variant.
 pub type Pair<'a, T> = crate::Pair<'a, T, Atomic>;
-
-#[doc(hidden)]
 pub struct Data<T: ?Sized>(NonNull<T>, NonNull<AtomicU32>);
-#[doc(hidden)]
 pub struct Life<'a>(&'a AtomicU32);
 
 unsafe impl<'a, T: ?Sized + 'a> Send for Data<T> where &'a T: Send {}
@@ -136,37 +78,26 @@ impl Binding for Atomic {
 }
 
 impl<T: ?Sized> Borrow<T> for Lich<T> {
-    /// Borrows the wrapped data.
-    ///
-    /// This is an alias for [`Lich::borrow`].
     fn borrow(&self) -> &T {
         self.borrow()
     }
 }
 
 impl<T: ?Sized> Lich<T> {
-    /// Borrows the wrapped data.
-    ///
-    /// This provides safe, shared access to the underlying data. The borrow is
-    /// statically guaranteed to be valid as long as the [`Lich<T, Atomic>`]
-    /// exists.
+    /// This borrow is safe and always succeeds because the [`Soul<'a>`]'s
+    /// [`Drop`] implementation will block until all [`Lich<T>`] clones (and
+    /// therefore all borrows) are gone.
     #[allow(clippy::should_implement_trait)]
     pub fn borrow(&self) -> &T {
-        // This is safe because the `Soul`'s drop implementation will block
-        // until all `Lich` clones (and therefore all borrows) are gone.
-        unsafe { self.0 .0.as_ref() }
+        unsafe { self.0.0.as_ref() }
     }
 }
 
-/// Creates an `atomic` [`Lich<T, Atomic>`] and [`Soul<'a, Atomic>`] pair from a
-/// reference and a counter.
-///
-/// This function binds the lifetime of `value` to a [`Lich<T, Atomic>`] and
-/// [`Soul<'a, Atomic>`] pair, using the provided `location` as storage for the
-/// reference count.
+/// Binds the lifetime of `value` to a [`Lich<T>`] and [`Soul<'a>`] pair, using
+/// the provided `location` as storage for the reference count.
 ///
 /// The `location` must have a lifetime `'a` that is at least as long as the
-/// `value`'s borrow. It will be initialized to `1`.
+/// `value`'s borrow. It will be initialized to `1` and may end with any value.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized>(
     value: &'a T,
     location: &'a mut u32,
@@ -183,18 +114,17 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized>(
     )
 }
 
-/// Safely consumes an `atomic` [`Lich<T, Atomic>`] and [`Soul<'a, Atomic>`]
-/// pair.
+/// Safely disposes of a [`Lich<T>`] and [`Soul<'a>`] pair.
 ///
-/// If the provided [`Lich<T, Atomic>`] and [`Soul<'a, Atomic>`] match, they are
-/// consumed and `Ok` is returned. If they do not match, `Err` is returned with
-/// the pair.
+/// If the provided [`Lich<T>`] and [`Soul<'a>`] are bound together, they are
+/// consumed and [`Ok`] is returned with the [`Soul<'a>`] if there are other
+/// live [`Lich<T>`] clones. If they are not bound together, [`Err`] is returned
+/// with the pair.
 ///
-/// Unlike the `raw` variant, this function is not strictly required. If the
-/// [`Lich<T, Atomic>`] and [`Soul<'a, Atomic>`] are simply dropped, the
-/// [`Soul<'a, Atomic>`]'s drop implementation will block until all
-/// [`Lich<T, Atomic>`] clones are dropped, ensuring safety. However,
-/// using `redeem` is good practice for explicit cleanup.
+/// If the [`Lich<T>`] and [`Soul<'a>`] are simply dropped, the [`Soul<'a>`]'s
+/// [`Drop`] implementation will block until all [`Lich<T>`] clones are dropped,
+/// ensuring safety. While not strictly necessary, using [`redeem`] is good
+/// practice for explicit cleanup.
 pub fn redeem<'a, T: ?Sized + 'a>(
     lich: Lich<T>,
     soul: Soul<'a>,
