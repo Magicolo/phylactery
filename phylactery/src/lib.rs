@@ -10,6 +10,7 @@ pub mod lock;
 pub mod raw;
 pub mod shroud;
 use core::{mem::ManuallyDrop, ptr::drop_in_place};
+#[cfg(feature = "shroud")]
 pub use phylactery_macro::shroud;
 
 pub trait Binding {

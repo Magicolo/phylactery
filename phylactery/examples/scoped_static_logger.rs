@@ -1,6 +1,6 @@
 /// Implements a thread local scoped logger available from anywhere that can
 /// borrow values that live on the stack.
-#[cfg(feature = "cell")]
+#[cfg(all(feature = "cell", feature = "shroud"))]
 pub mod scoped_static_logger {
     use core::{cell::RefCell, fmt::Display};
     use phylactery::{
@@ -84,7 +84,7 @@ pub mod scoped_static_logger {
 }
 
 fn main() {
-    #[cfg(feature = "cell")]
+    #[cfg(all(feature = "cell", feature = "shroud"))]
     scoped_static_logger::scope("some-prefix", &37, |value| {
         assert_eq!(*value, 37);
     });
