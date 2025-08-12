@@ -198,8 +198,8 @@ mod fail {
     }
 
     fail!(can_not_drop_while_soul_lives, {
-        use crate::raw::ritual;
         use core::cell::RefCell;
+        use phylactery::raw::ritual;
 
         let value = String::new();
         let cell = RefCell::new(value);
