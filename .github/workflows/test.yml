@@ -35,6 +35,8 @@ jobs:
     runs-on: ubuntu-latest
     container: 
       image: ghcr.io/magicolo/rust
+    env:
+      RUSTDOCFLAGS: --deny warnings
     steps:
     - uses: actions/checkout@v4
     - run: cargo hack doc --no-deps --release --verbose --feature-powerset

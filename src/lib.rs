@@ -28,8 +28,8 @@ pub trait Binding {
 /// any associated [`Lich<T, B>`] can no longer access the reference, preventing
 /// `use-after-free` errors.
 ///
-/// The exact behavior on drop depends on the binding variant (e.g., [`raw`]
-/// will [`panic!`] if not redeemed, [`atomic`] will block, etc.).
+/// The exact behavior on drop depends on the binding variant (e.g., `raw`
+/// will [`panic!`] if not redeemed, `atomic` will block, etc.).
 pub struct Soul<'a, B: Binding + ?Sized>(pub(crate) B::Life<'a>);
 
 /// The `'static` part of a [`Lich<T, B>`] and [`Soul<'a, B>`] pair.
@@ -96,7 +96,7 @@ impl<T: ?Sized, B: Binding<Data<T>: Sever> + ?Sized> Lich<T, B> {
     /// its/their [`Soul<'a, B>`].
     ///
     /// This method is only available on bindings where the [`Lich<T, B>`] can
-    /// be forcefully severed, like [`cell`] and [`lock`].
+    /// be forcefully severed, like `cell` and `lock`.
     ///
     /// Returns `true` if the connection was severed, `false` if it was already
     /// severed.
