@@ -1,4 +1,62 @@
-use crate::{Binding, Sever, TrySever, shroud::Shroud};
+//! Single-threaded lifetime extension using [`Rc<RefCell<T>>`].
+//!
+//! This module provides the `cell` binding, which uses [`Rc`] and [`RefCell`]
+//! to enable lifetime extension in a single-threaded context. It performs heap
+//! allocation for the reference-counted pointer.
+//!
+//! # Trade-offs
+//!
+//! - **Pros:**
+//!   - Safe, `unsafe`-free public API.
+//!   - [`Lich<T, Cell>`] can be cloned.
+//!   - `redeem` is not strictly required; dropping is safe.
+//!   - Supports `sever` to explicitly break the link.
+//! - **Cons:**
+//!   - **Not** thread-safe (`!Send` and `!Sync`).
+//!   - Allocates on the heap.
+//!   - Borrowing from [`Lich<T, Cell>`] returns an [`Option`] and can fail.
+//!   - If a borrow is held when the [`Soul<'a, Cell>`] is dropped, the thread
+//!     will [`panic!`].
+//!
+//! # Usage
+//!
+//! ```
+//! use phylactery::{shroud, cell::{ritual, redeem}};
+//!
+//! pub trait Trait {
+//!     fn do_it(&self);
+//! }
+//! shroud!(Trait);
+//!
+//! struct Foo(i32);
+//! impl Trait for Foo {
+//!     fn do_it(&self) {
+//!         println!("Value is: {}", self.0);
+//!     }
+//! }
+//!
+//! let foo = Foo(42);
+//! let (lich, soul) = ritual::<_, dyn Trait>(&foo);
+//! let lich_clone = lich.clone();
+//!
+//! if let Some(f) = lich_clone.borrow() {
+//!     f.do_it();
+//! }
+//!
+//! if let Some(f) = lich.borrow() {
+//!     f.do_it();
+//! }
+//!
+//! // You can explicitly sever the connection.
+//! soul.sever();
+//!
+//! // Now, borrowing will fail.
+//! assert!(lich.borrow().is_none());
+//!
+//! // `redeem` is not required, but is good practice.
+//! // redeem(lich, soul).ok();
+//! ```
+use crate::{shroud::Shroud, Binding, Sever, TrySever};
 use core::{
     cell::{Ref, RefCell},
     ops::Deref,
@@ -6,14 +64,28 @@ use core::{
 };
 use std::rc::{Rc, Weak};
 
+/// The `Rc<RefCell<T>>`-based `Binding` variant.
+///
+/// See the [module-level documentation](self) for more details.
 pub struct Cell;
 
+/// A [`Soul<'a, B>`](crate::Soul) bound to the `cell` variant.
 pub type Soul<'a> = crate::Soul<'a, Cell>;
+/// A [`Lich<T, B>`](crate::Lich) bound to the `cell` variant.
 pub type Lich<T> = crate::Lich<T, Cell>;
+/// A [`Pair<'a, T, B>`](crate::Pair) bound to the `cell` variant.
 pub type Pair<'a, T> = crate::Pair<'a, T, Cell>;
 
+#[doc(hidden)]
 pub struct Data<T: ?Sized>(Rc<RefCell<Option<NonNull<T>>>>);
+#[doc(hidden)]
 pub struct Life<'a>(Weak<RefCell<dyn Slot + 'a>>);
+/// A RAII guard for a borrow from a `cell` [`Lich<T, Cell>`].
+///
+/// This guard ensures that the borrow from the underlying [`RefCell`] is
+/// properly released when the guard is dropped.
+///
+/// It dereferences to `T`.
 pub struct Guard<'a, T: ?Sized>(Ref<'a, Option<NonNull<T>>>);
 
 trait Slot: Sever + TrySever {}
@@ -83,12 +155,21 @@ impl Binding for Cell {
 }
 
 impl<T: ?Sized> Lich<T> {
-    /// Borrowing may fail if the `Soul<'a>` has been dropped/severed.
-    /// Returns a `Guard<'a, T>` that tracks the borrow.
+    /// Borrows the wrapped data, returning a [`Guard<T>`] if successful.
+    ///
+    /// This method will return `Some(Guard)` if the data is available and not
+    /// already mutably borrowed. The returned [`Guard<T>`] provides immutable
+    /// access to the data.
+    ///
+    /// It will return `None` if:
+    /// - The link to the [`Soul<'a, Cell>`] has been severed (e.g.,
+    ///   [`Soul::sever`] was called or the [`Soul<'a, Cell>`] was dropped).
+    /// - The underlying [`RefCell`] is already mutably borrowed (which can
+    ///   happen during `sever` or `redeem`).
     pub fn borrow(&self) -> Option<Guard<'_, T>> {
         // `try_borrow` can be used here because only the `sever` operation calls
         // `borrow_mut`, at which point, the value must not be observable
-        let guard = self.0.0.try_borrow().ok()?;
+        let guard = self.0 .0.try_borrow().ok()?;
         if guard.is_some() {
             Some(Guard(guard))
         } else {
@@ -103,8 +184,8 @@ impl<T: ?Sized> Deref for Guard<'_, T> {
     fn deref(&self) -> &T {
         // # Safety
         // The `Option<NonNull<T>>` can only be `Some` as per the check in
-        // `Lich<T>::borrow` and could not have been swapped for `None` since it is
-        // protected by its corresponding `RwLockReadGuard` guard.
+        // `Lich<T>::borrow` and could not have been swapped for `None` since it
+        // is protected by its corresponding `RwLockReadGuard` guard.
         unsafe { self.0.as_ref().unwrap_unchecked().as_ref() }
     }
 }
@@ -115,26 +196,30 @@ impl<T: ?Sized> AsRef<T> for Guard<'_, T> {
     }
 }
 
-/// Splits the provided `&'a T` into a [`Lich<S>`] and [`Soul<'a>`] pair that
-/// are bound together where `S` is some trait that implements [`Shroud<T>`].
+/// Creates a `cell` [`Lich<T, Cell>`] and [`Soul<'a, Cell>`] pair from a
+/// reference.
+///
+/// This function allocates a `Rc<RefCell<...>>` on the heap to manage the
+/// reference and its borrow state.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
     let data = Rc::new(RefCell::new(Some(S::shroud(value))));
     let life = Rc::downgrade(&data);
     (crate::Lich(Data(data)), crate::Soul(Life(life)))
 }
 
-/// Disposes of a [`Lich<T>`] and a [`Soul<'a>`] that were bound together by the
-/// same [`ritual`].
+/// Safely consumes a `cell` [`Lich<T, Cell>`] and [`Soul<'a, Cell>`] pair.
 ///
-/// While it is not strictly necessary for the [`Cell`] variant to use this call
-/// since is safe to simply let the [`Lich<T>`] or the [`Soul<'a>`] be dropped,
-/// it is considered good practice to ensure consistent usage across all
-/// variants and to convince oneself that no borrow remain alive.
+/// If the provided [`Lich<T, Cell>`] and [`Soul<'a, Cell>`] match, they are
+/// consumed and `Ok` is returned. If they do not match, `Err` is returned with
+/// the pair.
 ///
-/// Returns `Ok(..)` if the [`Lich<T>`] and [`Soul<'a>`] were bound by the same
-/// [`ritual`] and [`redeem`]ed. The [`Soul<'a>`] will be returned if more
-/// instances of [`Lich<T>`] remain to allow them to be [`redeem`]ed. Otherwise
-/// returns `Err((lich, soul))` such that they can be properly [`redeem`]ed.
+/// While not strictly necessary for safety (dropping is safe in the `cell`
+/// variant), using `redeem` is good practice. It also allows the user to check
+/// if the [`Lich<T, Cell>`] was successfully destroyed or if other clones still
+/// exist.
+///
+/// If other [`Lich<T, Cell>`] clones exist, `Ok(Some(soul))` is returned, giving
+/// back the [`Soul<'a, Cell>`] to `redeem` the remaining clones later.
 pub fn redeem<'a, T: ?Sized + 'a>(
     lich: Lich<T>,
     soul: Soul<'a>,
