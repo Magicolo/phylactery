@@ -31,14 +31,13 @@ pub trait Shroud<T: ?Sized> {
 /// ```
 /// use phylactery::shroud;
 ///
-/// pub trait Trait {
-///     fn do_something(&self);
-/// }
+/// pub trait Trait1 { }
+/// pub trait Trait2 { }
 ///
-/// // This implements `shroud::Shroud<T: Trait> for dyn Trait`.
-/// shroud!(Trait);
-/// // This implements `shroud::Shroud<T: Trait> for dyn Trait` with all combinations of `Send`, `Sync` and `Unpin`.
-/// shroud!(Trait+);
+/// // This implements `shroud::Shroud<T: Trait1> for dyn Trait1`.
+/// shroud!(Trait1);
+/// // This implements `shroud::Shroud<T: Trait2> for dyn Trait2` with all combinations of `Send`, `Sync` and `Unpin`.
+/// shroud!(Trait2+);
 /// ```
 #[macro_export]
 macro_rules! shroud {
