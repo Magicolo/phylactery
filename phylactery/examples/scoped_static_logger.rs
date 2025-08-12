@@ -4,10 +4,13 @@
 pub mod scoped_static_logger {
     use core::{cell::RefCell, fmt::Display};
     use phylactery::{
-        cell::{redeem, ritual, Lich},
+        cell::{Lich, redeem, ritual},
         shroud,
     };
 
+    // Use the convenience macro to automatically implement the required `Shroud`
+    // trait for all `T: Log`.
+    #[shroud]
     pub trait Log {
         fn parent(&self) -> Option<&dyn Log>;
         fn prefix(&self) -> &str;
@@ -39,10 +42,6 @@ pub mod scoped_static_logger {
             self.arguments
         }
     }
-
-    // Use the convenience macro to automatically implement the required `Shroud`
-    // trait for all `T: Log`.
-    shroud!(Log);
 
     // This thread local storage allows preserve this thread's call stack while
     // being able to log from anywhere without the need to pass a logger around.

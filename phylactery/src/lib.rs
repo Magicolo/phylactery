@@ -9,8 +9,8 @@ pub mod cell;
 pub mod lock;
 pub mod raw;
 pub mod shroud;
-
 use core::{mem::ManuallyDrop, ptr::drop_in_place};
+pub use phylactery_macro::shroud;
 
 pub trait Binding {
     type Data<T: ?Sized>: TrySever;

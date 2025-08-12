@@ -1,0 +1,24 @@
+[package]
+name = "phylactery_macro"
+version = "0.1.0"
+authors = ["Magicolo <magicololand@gmail.com>"]
+edition = "2021"
+documentation = "https://docs.rs/phylactery_macro/latest/phylactery_macro/"
+description = "A set of macros to accompany the `phylactery` crate."
+license = "MIT"
+repository = "https://github.com/Magicolo/phylactery/phylactery_macro"
+keywords = ["unsafe", "lifetime", "scope", "extension", "static"]
+categories = ["concurrency", "no-std", "data-structures", "memory-management"]
+rust-version = "1.79.0"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "2.0.104", features = [
+    "proc-macro",
+    "parsing",
+    "full",
+    "printing",
+] }
+quote = { version = "1.0.40", default-features = false }

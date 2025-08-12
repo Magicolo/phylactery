@@ -1,26 +1,4 @@
-[package]
-name = "phylactery"
-version = "0.4.6"
-edition = "2021"
-authors = ["Magicolo <magicololand@gmail.com>"]
-readme = "README.md"
-documentation = "https://docs.rs/phylactery/latest/checkito/"
-description = "Safe and thin wrappers around lifetime extension to allow non-static values to cross static boundaries."
-license = "MIT"
-repository = "https://github.com/Magicolo/phylactery"
-keywords = ["unsafe", "lifetime", "scope", "extension", "static"]
-categories = ["concurrency", "no-std", "data-structures", "memory-management"]
-rust-version = "1.79"
-
-[badges]
-github = { repository = "Magicolo/phylactery", workflow = "test" }
-
-[features]
-default = ["cell", "lock", "atomic"]
-std = []
-cell = ["std"]
-lock = ["std"]
-atomic = ["atomic-wait"]
-
-[dependencies]
-atomic-wait = { version = "1.1.0", optional = true, default-features = false }
+[workspace]
+members = ["phylactery", "phylactery_macro"]
+default-members = ["phylactery"]
+resolver = "3"

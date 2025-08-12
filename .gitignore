@@ -1,3 +1,5 @@
-/target
-.local
+target
+coverage
 Cargo.lock
+.vscode
+.local
