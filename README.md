@@ -1,9 +1,9 @@
 <div align="center"> <h1> phylactery 0.5.2 </h1> </div>
 
 <p align="center">
-    <em> 
+    <i> 
 Safe and thin wrappers around lifetime extension to allow non-static values to cross static boundaries.
-    </em>
+    </i>
 </p>
 
 <div align="right">
@@ -66,7 +66,7 @@ Different variants exist with different tradeoffs:
 ---
 ### Examples
 
-<p align="right"><em> examples/thread_spawn_bridge.rs </em></p>
+<p align="right"><i> examples/thread_spawn_bridge.rs </i></p>
 
 ```rust
 /// Trivially reimplement [`thread::scope`] in a more powerful way.
@@ -123,7 +123,7 @@ fn main() {
 
 ###
 
-<p align="right"><em> examples/scoped_static_logger.rs </em></p>
+<p align="right"><i> examples/scoped_static_logger.rs </i></p>
 
 ```rust
 /// Implements a thread local scoped logger available from anywhere that can

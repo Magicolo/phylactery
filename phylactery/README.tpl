@@ -1,9 +1,9 @@
 <div align="center"> <h1> {{ package.name }} {{ package.version }} </h1> </div>
 
 <p align="center">
-    <em> 
+    <i> 
 {{ package.description }}
-    </em>
+    </i>
 </p>
 
 <div align="right">
@@ -66,7 +66,7 @@ Different variants exist with different tradeoffs:
 ---
 ### Examples
 
-<p align="right"><em> examples/thread_spawn_bridge.rs </em></p>
+<p align="right"><i> examples/thread_spawn_bridge.rs </i></p>
 
 ```rust
 {% include "thread_spawn_bridge.rs" %}
@@ -74,7 +74,7 @@ Different variants exist with different tradeoffs:
 
 ###
 
-<p align="right"><em> examples/scoped_static_logger.rs </em></p>
+<p align="right"><i> examples/scoped_static_logger.rs </i></p>
 
 ```rust
 {% include "scoped_static_logger.rs" %}
