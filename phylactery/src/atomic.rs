@@ -86,6 +86,7 @@ impl<T: ?Sized> Lich<T> {
     /// This borrow is safe and always succeeds because the [`Soul<'a>`]'s
     /// [`Drop`] implementation will block until all [`Lich<T>`] clones (and
     /// therefore all borrows) are gone.
+    #[allow(clippy::should_implement_trait)]
     pub fn borrow(&self) -> &T {
         unsafe { self.0.0.as_ref() }
     }

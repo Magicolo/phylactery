@@ -1,4 +1,4 @@
-//! The [`Shroud<T>`] trait and the associated [`#[shroud]`] macro are the core
+//! The [`Shroud<T>`] trait and the associated [`shroud`] macro are the core
 //! of this library's lifetime extension mechanism. They provide a way to erase
 //! the lifetime of a reference by converting it into a raw pointer or a dynamic
 //! trait, which can then be safely managed by a [`crate::Lich<T, B>`] and
@@ -56,9 +56,9 @@ pub use phylactery_macro::shroud;
 /// dynamic trait pointer.
 ///
 /// Note that it is already implemented for `Fn(T0, .., T7) -> T` and its
-/// combinations with [`Send`], [`Sync`], and [`Unpin`].
+/// combinations with [`Send`], [`Sync`] and [`Unpin`].
 ///
-/// See the [`#[shroud]`] macro for convenient implementation.
+/// See the [`shroud`] macro for convenient implementation.
 pub trait Shroud<T: ?Sized> {
     fn shroud(from: &T) -> NonNull<Self>;
 }

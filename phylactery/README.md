@@ -18,9 +18,9 @@ Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dy
 The general usage pattern of this library is:
 - Choose a `Lich`/`Soul` variant for your use-case (see below for the tradeoffs).
 - Implement `Shroud` for the trait for which you want to extend the lifetime (e.g. `#[shroud] trait Trait` will `impl<T: Trait> Shroud<T> for dyn Trait` automatically).
-- Use the corresponding `ritual` (e.g. `ritual::<T: Trait, dyn Trait>(value: &'a T)`) to produce a `Lich<dyn Trait + 'static>` bound to a `Soul<'a>`.
+- Use the corresponding `ritual::<T: Trait, dyn Trait>(value: &'a T)` to produce a `Lich<dyn Trait + 'static>` bound to a `Soul<'a>`.
 - Use the `Lich<dyn Trait>` as a `'static` reference to your otherwise non-`'static` `&'a T`.
-- Use the corresponding `redeem` (e.g. `redeem(Lich<T>, Soul<'a>)`) to guarantee that all references to `&'a T` are dropped before the end of lifetime `'a`.
+- Use the corresponding `redeem(Lich<T>, Soul<'a>)` to guarantee that all references to `&'a T` are dropped before the end of lifetime `'a`.
 
 When `Soul<'a>` is dropped or when calling `Soul::sever`, it is guaranteed that the captured reference is also dropped, thus inaccessible from a remaining `Lich`.
 
@@ -36,7 +36,7 @@ Different variants exist with different tradeoffs:
 - `phylactery::atomic`:
     - Adds minimal overhead with an `AtomicU32` reference counter.
     - Does **not** allocate heap memory.
-    - Does require an additional memory location (i.e. an `&mut u32`) to create the `Lich`/`Soul` pair.
+    - Does require an additional memory location (an `&mut u32`) to create the `Lich`/`Soul` pair.
     - If a `Lich` still exists when the `Soul` is dropped, the thread will block until the `Lich` is dropped (which can lead to deadlocks).
     - Does **not** require `unsafe` calls.
     - `Lich` can be cloned.
@@ -69,14 +69,14 @@ Different variants exist with different tradeoffs:
 <p align="right"><em> examples/thread_spawn_bridge.rs </em></p>
 
 ```rust
-/// Trivially reimplement `thread::scope` in a more powerful way.
+/// Trivially reimplement [`thread::scope`] in a more powerful way.
 ///
-/// Contrarily to other `scope` solutions, here, the captured reference can be
-/// returned (as a `Soul<'a>`) while the threads continue to execute.
+/// Contrary to other `scope` solutions, here, the captured reference can be
+/// returned (as a [`Soul<'a>`]) while the threads continue to execute.
 #[cfg(feature = "lock")]
 pub mod thread_spawn_bridge {
     use core::num::NonZeroUsize;
-    use phylactery::lock::{ritual, Soul};
+    use phylactery::lock::{Soul, ritual};
     use std::thread;
 
     pub fn broadcast<F: Fn(usize) + Send + Sync>(
@@ -88,15 +88,15 @@ pub mod thread_spawn_bridge {
         for index in 0..parallelism.get() {
             let lich = lich.clone();
             // The non-static function `F` crosses a `'static` boundary protected by the
-            // `Lich<T>`.
+            // `Lich`.
             thread::spawn(move || {
                 // Borrowing may fail if the `Soul<'a>` has been dropped/severed.
                 if let Some(guard) = lich.borrow() {
                     // Call the non-static function.
                     guard(index);
                 }
-                // Allow the `Guard` and `Lich<T>` to drop such that the
-                // `Soul<'a>` can complete its `Soul::sever`.
+                // Allow the `Guard` and `Lich` to drop such that the `Soul<'a>`
+                // can complete its `Soul::sever`.
             });
         }
 
@@ -106,7 +106,7 @@ pub mod thread_spawn_bridge {
         // Note that this may block this thread if there still are active borrows at the
         // time of drop.
         //
-        // Note that the `Lich<T>`es do not need be `redeem`ed.
+        // Note that the `Lich`es do not need be `redeem`ed.
         soul
     }
 }
@@ -118,6 +118,7 @@ fn main() {
         &|index| println!("{index}"),
     );
 }
+
 ```
 
 ###
@@ -170,7 +171,7 @@ pub mod scoped_static_logger {
         }
     }
 
-    // This thread local storage allows preserve this thread's call stack while
+    // This thread local storage allows preserving this thread's call stack while
     // being able to log from anywhere without the need to pass a logger around.
     //
     // Note that the `Lich<dyn Log>` implements `Default` and has the `'static`
@@ -182,8 +183,8 @@ pub mod scoped_static_logger {
     pub fn scope<T: Display, F: FnOnce(&T)>(prefix: &str, argument: &T, function: F) {
         let parent = LOGGER.take();
         {
-            // `Lich::borrow` can fail if the binding between it and its `Soul<'a>` has been
-            // severed.
+            // `Lich::borrow` can fail if the binding between it and its `Soul<'a>`
+            // has been severed.
             let guard = parent.borrow();
             // This `Logger` captures some references that live on the stack.
             let logger = Logger {
@@ -199,10 +200,10 @@ pub mod scoped_static_logger {
             function(argument);
             // Pop the logger.
             let lich = LOGGER.take();
-            // Although not strictly required in this case (letting the `Lich<T>` and
+            // Although not strictly required in this case (letting the `Lich` and
             // `Soul<'a>` be dropped would also work), `redeem` is the recommended
-            // pattern to dispose of a `Lich<T>` and `Soul<'a>` pair since it is going to
-            // work with all variants of `Lich<T>/Soul<'a>`.
+            // pattern to dispose of a `Lich` and `Soul<'a>` pair since it is
+            // going to work with all variants of `Lich`/`Soul`.
             redeem(lich, soul).ok().expect("must be able to redeem");
         }
         // Put back the old logger.
@@ -216,6 +217,7 @@ fn main() {
         assert_eq!(*value, 37);
     });
 }
+
 ```
 
 _See the [examples](examples/) and [tests](tests/) folder for more detailed examples._

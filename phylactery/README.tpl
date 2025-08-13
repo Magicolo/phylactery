@@ -18,9 +18,9 @@ Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dy
 The general usage pattern of this library is:
 - Choose a `Lich`/`Soul` variant for your use-case (see below for the tradeoffs).
 - Implement `Shroud` for the trait for which you want to extend the lifetime (e.g. `#[shroud] trait Trait` will `impl<T: Trait> Shroud<T> for dyn Trait` automatically).
-- Use the corresponding `ritual` (e.g. `ritual::<T: Trait, dyn Trait>(value: &'a T)`) to produce a `Lich<dyn Trait + 'static>` bound to a `Soul<'a>`.
+- Use the corresponding `ritual::<T: Trait, dyn Trait>(value: &'a T)` to produce a `Lich<dyn Trait + 'static>` bound to a `Soul<'a>`.
 - Use the `Lich<dyn Trait>` as a `'static` reference to your otherwise non-`'static` `&'a T`.
-- Use the corresponding `redeem` (e.g. `redeem(Lich<T>, Soul<'a>)`) to guarantee that all references to `&'a T` are dropped before the end of lifetime `'a`.
+- Use the corresponding `redeem(Lich<T>, Soul<'a>)` to guarantee that all references to `&'a T` are dropped before the end of lifetime `'a`.
 
 When `Soul<'a>` is dropped or when calling `Soul::sever`, it is guaranteed that the captured reference is also dropped, thus inaccessible from a remaining `Lich`.
 
@@ -36,7 +36,7 @@ Different variants exist with different tradeoffs:
 - `phylactery::atomic`:
     - Adds minimal overhead with an `AtomicU32` reference counter.
     - Does **not** allocate heap memory.
-    - Does require an additional memory location (i.e. an `&mut u32`) to create the `Lich`/`Soul` pair.
+    - Does require an additional memory location (an `&mut u32`) to create the `Lich`/`Soul` pair.
     - If a `Lich` still exists when the `Soul` is dropped, the thread will block until the `Lich` is dropped (which can lead to deadlocks).
     - Does **not** require `unsafe` calls.
     - `Lich` can be cloned.
