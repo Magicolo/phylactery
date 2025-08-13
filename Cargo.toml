@@ -1,3 +1,4 @@
 [workspace]
 members = ["phylactery", "phylactery_macro"]
 default-members = ["phylactery"]
+resolver = "2"
