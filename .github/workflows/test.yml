@@ -39,7 +39,7 @@ jobs:
       RUSTDOCFLAGS: --deny warnings
     steps:
     - uses: actions/checkout@v4
-    - run: cargo hack doc --no-deps --release --verbose --feature-powerset
+    - run: cargo doc --no-deps --release --verbose --all-features
   semver:
     runs-on: ubuntu-latest
     container: 
