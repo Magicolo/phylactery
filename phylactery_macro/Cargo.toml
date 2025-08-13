@@ -9,7 +9,7 @@ license = "MIT"
 repository = "https://github.com/Magicolo/phylactery/phylactery_macro"
 keywords = ["unsafe", "lifetime", "scope", "extension", "static"]
 categories = ["concurrency", "no-std", "data-structures", "memory-management"]
-rust-version = "1.79.0"
+rust-version = "1.61"
 
 [lib]
 proc-macro = true

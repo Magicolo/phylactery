@@ -53,7 +53,8 @@ jobs:
       image: ghcr.io/magicolo/rust
     steps:
     - uses: actions/checkout@v4
-    - run: cargo msrv verify --all-features
+    - run: cargo msrv verify --all-features --path phylactery
+    - run: cargo msrv verify --all-features --path phylactery_macro
   audit:
     runs-on: ubuntu-latest
     container: 
