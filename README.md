@@ -17,7 +17,7 @@ Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dy
 
 The general usage pattern of this library is:
 - Choose a `Lich<T>/Soul<'a>` variant for your use-case (see below for the tradeoffs).
-- Implement `Shroud` for the trait for which you want to extend the lifetime (a simple call to `shroud!(Trait)` is often all it takes).
+- Implement `Shroud` for the trait for which you want to extend the lifetime (`#[shroud] trait Trait` will `impl<T: Trait> Shroud<T> for dyn Trait` automatically).
 - Use the corresponding `ritual::<T: Trait, dyn Trait>(value: &'a T)` to produce a `Lich<dyn Trait + 'static>` bound to a `Soul<'a>`.
 - Use the `Lich<dyn Trait>` as a `'static` reference to your otherwise non-static `&'a T`.
 - Use the corresponding `redeem(Lich<T>, Soul<'a>)` to guarantee that all references to `&'a T` are dropped before the end of lifetime `'a`.
