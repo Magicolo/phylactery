@@ -130,7 +130,7 @@ impl<T: ?Sized> AsRef<T> for Guard<'_, T> {
 /// Creates a `lock` [`Lich<T, Lock>`] and [`Soul<'a, Lock>`] pair from a
 /// reference.
 ///
-/// This function allocates an `Arc<RwLock<...>>` on the heap to manage the
+/// This function allocates an [`Arc<RwLock<..>>`] on the heap to manage the
 /// reference and its borrow state in a thread-safe way.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
     let data = Arc::new(RwLock::new(Some(S::shroud(value))));

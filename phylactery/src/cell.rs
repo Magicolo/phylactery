@@ -131,7 +131,7 @@ impl<T: ?Sized> AsRef<T> for Guard<'_, T> {
 
 /// Binds the lifetime of `value` to a [`Lich<T>`] and [`Soul<'a>`] pair.
 ///
-/// This function allocates a `Rc<RefCell<...>>` on the heap to manage the
+/// This function allocates a [`Rc<RefCell<..>>`] on the heap to manage the
 /// reference.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
     let data = Rc::new(RefCell::new(Some(S::shroud(value))));
