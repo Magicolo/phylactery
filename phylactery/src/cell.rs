@@ -1,7 +1,7 @@
-//! `Rc<RefCell<T>>`-based, [`Clone`]able, lifetime extension using a reference
-//! counter.
+//! [`Rc<RefCell<T>>`]-based, [`Clone`]able, lifetime extension using a
+//! reference counter.
 //!
-//! This module provides the [`Cell`] [`Binding`] implementation, which uses a
+//! This module provides the [`Cell`] [`Binding`] implementation, which uses an
 //! [`Rc<RefCell<T>>`] as a reference counter to track the number of active
 //! [`Lich<T>`] clones/borrows.
 
@@ -90,9 +90,9 @@ impl Binding for Cell {
 impl<T: ?Sized> Lich<T> {
     /// Borrows the wrapped data, returning a [`Guard<T>`] if successful.
     ///
-    /// This method will return [`Some<Guard>`] if the data is available and not
-    /// already mutably borrowed. The returned [`Guard<T>`] provides immutable
-    /// access to the data.
+    /// This method will return a [`Some<Guard>`] if the data is available and
+    /// not already mutably borrowed. The returned [`Guard<T>`] provides
+    /// immutable access to the data.
     ///
     /// It will return [`None`] if:
     /// - The link to the [`Soul<'a>`] has been severed (e.g., [`Soul::sever`]
@@ -118,7 +118,7 @@ impl<T: ?Sized> Deref for Guard<'_, T> {
         // # Safety
         // The `Option<NonNull<T>>` can only be `Some` as per the check in
         // `Lich<T>::borrow` and could not have been swapped for `None` since it
-        // is protected by its corresponding `RwLockReadGuard` guard.
+        // is protected by its corresponding `Ref` guard.
         unsafe { self.0.as_ref().unwrap_unchecked().as_ref() }
     }
 }
@@ -131,7 +131,7 @@ impl<T: ?Sized> AsRef<T> for Guard<'_, T> {
 
 /// Binds the lifetime of `value` to a [`Lich<T>`] and [`Soul<'a>`] pair.
 ///
-/// This function allocates a [`Rc<RefCell<..>>`] on the heap to manage the
+/// This function allocates a [`Rc<RefCell<T>>`] on the heap to manage the
 /// reference.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
     let data = Rc::new(RefCell::new(Some(S::shroud(value))));
@@ -143,13 +143,13 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> P
 ///
 /// If the provided [`Lich<T>`] and [`Soul<'a>`] are bound together, they are
 /// consumed and [`Ok`] is returned with the [`Soul<'a>`] if there are other
-/// live [`Lich<T>`] clones. If they are not bound together, [`Err`] is returned
-/// with the pair.
+/// live [`Lich<T>`] clones. If they are not bound together, [`Err`] is
+/// returned with the pair.
 ///
 /// If the [`Lich<T>`] and [`Soul<'a>`] are simply dropped, the [`Soul<'a>`]'s
-/// [`Drop`] implementation will [`panic`] if any remaining [`Lich<T>::borrow`]
-/// [`Guard`]s are still alive, ensuring safety. While not strictly necessary,
-/// using [`redeem`] is good practice for explicit cleanup.
+/// [`Drop`] implementation will [`panic!`] if any remaining
+/// [`Lich<T>::borrow`] [`Guard`]s are still alive, ensuring safety. While not
+/// strictly necessary, using [`redeem`] is good practice for explicit cleanup.
 pub fn redeem<'a, T: ?Sized + 'a>(
     lich: Lich<T>,
     soul: Soul<'a>,

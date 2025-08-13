@@ -1,10 +1,10 @@
-//! Zero-cost, `unsafe`, allocation-free, thread-safe,`#[no_std]`-compatible
+//! Zero-cost, `unsafe`, allocation-free, thread-safe, `#[no_std]`-compatible
 //! lifetime extension.
 //!
 //! This module provides the [`Raw`] [`Binding`] implementation, which is the
 //! most performant but also the most dangerous variant. It offers a zero-cost
-//! abstraction, meaning it introduces no heap allocations or reference counting
-//! overhead. The [`Lich<T>`] and [`Soul<'a>`] are simple new type wrappers
+//! abstraction, meaning it introduces no heap allocations or reference-counting
+//! overhead. The [`Lich<T>`] and [`Soul<'a>`] are simple new-type wrappers
 //! around raw pointers.
 
 use crate::{Binding, Sever, TrySever, shroud::Shroud};
@@ -62,7 +62,7 @@ impl<T: ?Sized> Lich<T> {
     ///
     /// The caller must ensure that the corresponding [`Soul<'a>`] is still
     /// alive and in scope. Dropping the [`Soul<'a>`] while this borrow is
-    /// active will invalidate the pointer, leading to a **use-after-free**
+    /// active will invalidate the pointer, leading to a `use-after-free`
     /// vulnerability.
     ///
     /// The [`Raw`] variant offers no runtime checks to prevent this. It is the
@@ -74,8 +74,8 @@ impl<T: ?Sized> Lich<T> {
 
 /// Binds the lifetime of `value` to a [`Lich<T>`] and [`Soul<'a>`] pair.
 ///
-/// The returned [`Lich<T>`] and [`Soul<'a>`] will both **[`panic`] on drop**
-/// and **must** be sent to [`redeem`] to be disposed.
+/// The returned [`Lich<T>`] and [`Soul<'a>`] will both **[`panic!`] on
+/// drop** and **must** be sent to [`redeem`] to be disposed.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
     let pointer = S::shroud(value);
     (
@@ -87,7 +87,7 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> P
 /// Safely disposes of a [`Lich<T>`] and [`Soul<'a>`] pair.
 ///
 /// This function is **required** for the [`Raw`] variant. It safely disposes of
-/// the pair, preventing their [`Drop`] implementations from [`panic`]king.
+/// the pair, preventing their [`Drop`] implementations from [`panic!`]ing.
 ///
 /// If the provided [`Lich<T>`] and [`Soul<'a>`] are bound together, they are
 /// consumed and [`Ok`] is returned. If they are not bound together, [`Err`] is

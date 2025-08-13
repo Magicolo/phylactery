@@ -1,4 +1,4 @@
-//! `Arc<RwLock<T>>`-based, allocation-using, thread-safe, [`Clone`]able,
+//! [`Arc<RwLock<T>>`]-based, allocation-using, thread-safe, [`Clone`]able,
 //! lifetime extension using a reference counter.
 //!
 //! This module provides the [`Lock`] [`Binding`] implementation, which uses an
@@ -88,8 +88,8 @@ impl Binding for Lock {
 impl<T: ?Sized> Lich<T> {
     /// Borrows the wrapped data, returning a [`Guard<T>`] if successful.
     ///
-    /// This method will return [`Some<Guard<T>>`] if the data is available and
-    /// not already exclusively locked. The returned [`Guard`] provides
+    /// This method will return a [`Some<Guard<T>>`] if the data is available
+    /// and not already exclusively locked. The returned [`Guard`] provides
     /// immutable, thread-safe access to the data.
     ///
     /// It will return [`None`] if:
@@ -130,7 +130,7 @@ impl<T: ?Sized> AsRef<T> for Guard<'_, T> {
 /// Creates a `lock` [`Lich<T, Lock>`] and [`Soul<'a, Lock>`] pair from a
 /// reference.
 ///
-/// This function allocates an [`Arc<RwLock<..>>`] on the heap to manage the
+/// This function allocates an [`Arc<RwLock<T>>`] on the heap to manage the
 /// reference and its borrow state in a thread-safe way.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
     let data = Arc::new(RwLock::new(Some(S::shroud(value))));
@@ -142,13 +142,13 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> P
 ///
 /// If the provided [`Lich<T>`] and [`Soul<'a>`] are bound together, they are
 /// consumed and [`Ok`] is returned with the [`Soul<'a>`] if there are other
-/// live [`Lich<T>`] clones. If they are not bound together, [`Err`] is returned
-/// with the pair.
+/// live [`Lich<T>`] clones. If they are not bound together, [`Err`] is
+/// returned with the pair.
 ///
 /// If the [`Lich<T>`] and [`Soul<'a>`] are simply dropped, the [`Soul<'a>`]'s
 /// [`Drop`] implementation will block until all remaining [`Lich<T>::borrow`]
-/// [`Guard`]s are dropped, ensuring safety. While not strictly necessary,
-/// using [`redeem`] is good practice for explicit cleanup.
+/// [`Guard`]s are dropped, ensuring safety. While not strictly necessary, using
+/// [`redeem`] is good practice for explicit cleanup.
 pub fn redeem<'a, T: ?Sized + 'a>(
     lich: Lich<T>,
     soul: Soul<'a>,

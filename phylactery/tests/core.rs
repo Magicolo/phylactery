@@ -196,7 +196,7 @@ macro_rules! lock_cell_atomic_raw {
 #[cfg(feature = "lock")]
 mod lock {
     use super::*;
-    use phylactery::lock::{redeem, ritual, Lich};
+    use phylactery::lock::{Lich, redeem, ritual};
     use std::{sync::Mutex, thread::spawn};
 
     lock_cell_atomic_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()][]);
@@ -209,7 +209,7 @@ mod lock {
 mod cell {
     use super::*;
     use core::cell::RefCell;
-    use phylactery::cell::{redeem, ritual, Lich};
+    use phylactery::cell::{Lich, redeem, ritual};
 
     lock_cell_atomic_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()][]);
     lock_cell_atomic!([]);
@@ -245,7 +245,7 @@ mod cell {
 #[cfg(feature = "atomic")]
 mod atomic {
     use super::*;
-    use phylactery::atomic::{redeem, ritual, Lich};
+    use phylactery::atomic::{Lich, redeem, ritual};
     use std::{sync::Mutex, thread::spawn};
 
     lock_cell_atomic_raw!([][][|result: Result<_, _>| result.is_ok()][location]);
@@ -276,7 +276,7 @@ mod atomic {
 
 mod raw {
     use super::*;
-    use phylactery::raw::{redeem, ritual, Lich};
+    use phylactery::raw::{Lich, redeem, ritual};
     use std::{sync::Mutex, thread::spawn};
 
     lock_cell_atomic_raw!([unsafe][][|result: Result<_, _>| result.is_ok()][]);

@@ -41,6 +41,7 @@ pub struct Soul<'a, B: Binding + ?Sized>(pub(crate) B::Life<'a>);
 /// Accessing the underlying data is typically done via a `borrow` method, whose
 /// behavior varies depending on the binding variant.
 pub struct Lich<T: ?Sized, B: Binding + ?Sized>(pub(crate) B::Data<T>);
+/// A [`Lich<T, B>`] and [`Soul<'a, B>`] pair.
 pub type Pair<'a, T, B> = (Lich<T, B>, Soul<'a, B>);
 
 pub trait Sever {
@@ -82,8 +83,8 @@ impl<T: ?Sized, B: Binding + ?Sized> Lich<T, B> {
     /// Attempts to sever the binding between this [`Lich<T, B>`] (and clones)
     /// and its/their [`Soul<'a, B>`].
     ///
-    /// Returns `Ok(true)` if the connection was severed, `Ok(false)` if if
-    /// was already severed and `Err(self)` if the operation failed. Failure
+    /// Returns `Ok(true)` if the connection was severed, `Ok(false)` if it
+    /// was already severed, and `Err(self)` if the operation failed. Failure
     /// conditions will vary based on the variant.
     pub fn try_sever(mut self) -> Result<bool, Self> {
         self.0.try_sever().ok_or(self)
@@ -109,7 +110,7 @@ impl<B: Binding + ?Sized> Soul<'_, B> {
     /// [`Lich<T, B>`]es.
     ///
     /// This consumes the [`Soul<'a, B>`] and makes the corresponding
-    /// [`Lich<T, B>`] unable to access the underlying data.
+    /// [`Lich<T, B>`]es unable to access the underlying data.
     ///
     /// Returns `true` if the connection was severed, `false` if it was already
     /// severed.
@@ -123,10 +124,10 @@ impl<'a, B: Binding<Life<'a>: TrySever> + ?Sized> Soul<'a, B> {
     /// [`Lich<T, B>`]es.
     ///
     /// This consumes the [`Soul<'a, B>`] and makes the corresponding
-    /// [`Lich<T, B>`] unable to access the underlying data.
+    /// [`Lich<T, B>`]es unable to access the underlying data.
     ///
-    /// Returns `Ok(true)` if the connection was severed, `Ok(false)` if if
-    /// was already severed and `Err(self)` if the operation failed. Failure
+    /// Returns `Ok(true)` if the connection was severed, `Ok(false)` if it
+    /// was already severed, and `Err(self)` if the operation failed. Failure
     /// conditions will vary based on the variant.
     pub fn try_sever(mut self) -> Result<bool, Self> {
         self.0.try_sever().ok_or(self)
