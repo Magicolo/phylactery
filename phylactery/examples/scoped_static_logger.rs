@@ -43,7 +43,7 @@ pub mod scoped_static_logger {
         }
     }
 
-    // This thread local storage allows preserve this thread's call stack while
+    // This thread local storage allows preserving this thread's call stack while
     // being able to log from anywhere without the need to pass a logger around.
     //
     // Note that the `Lich<dyn Log>` implements `Default` and has the `'static`
@@ -55,8 +55,8 @@ pub mod scoped_static_logger {
     pub fn scope<T: Display, F: FnOnce(&T)>(prefix: &str, argument: &T, function: F) {
         let parent = LOGGER.take();
         {
-            // `Lich::borrow` can fail if the binding between it and its `Soul<'a>` has been
-            // severed.
+            // `Lich::borrow` can fail if the binding between it and its `Soul<'a>`
+            // has been severed.
             let guard = parent.borrow();
             // This `Logger` captures some references that live on the stack.
             let logger = Logger {
@@ -72,10 +72,10 @@ pub mod scoped_static_logger {
             function(argument);
             // Pop the logger.
             let lich = LOGGER.take();
-            // Although not strictly required in this case (letting the `Lich<T>` and
+            // Although not strictly required in this case (letting the `Lich` and
             // `Soul<'a>` be dropped would also work), `redeem` is the recommended
-            // pattern to dispose of a `Lich<T>` and `Soul<'a>` pair since it is going to
-            // work with all variants of `Lich<T>/Soul<'a>`.
+            // pattern to dispose of a `Lich` and `Soul<'a>` pair since it is
+            // going to work with all variants of `Lich`/`Soul`.
             redeem(lich, soul).ok().expect("must be able to redeem");
         }
         // Put back the old logger.

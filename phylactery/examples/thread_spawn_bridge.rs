@@ -1,11 +1,11 @@
-/// Trivially reimplement `thread::scope` in a more powerful way.
+/// Trivially reimplement [`thread::scope`] in a more powerful way.
 ///
-/// Contrarily to other `scope` solutions, here, the captured reference can be
-/// returned (as a `Soul<'a>`) while the threads continue to execute.
+/// Contrary to other `scope` solutions, here, the captured reference can be
+/// returned (as a [`Soul<'a>`]) while the threads continue to execute.
 #[cfg(feature = "lock")]
 pub mod thread_spawn_bridge {
     use core::num::NonZeroUsize;
-    use phylactery::lock::{ritual, Soul};
+    use phylactery::lock::{Soul, ritual};
     use std::thread;
 
     pub fn broadcast<F: Fn(usize) + Send + Sync>(
@@ -17,15 +17,15 @@ pub mod thread_spawn_bridge {
         for index in 0..parallelism.get() {
             let lich = lich.clone();
             // The non-static function `F` crosses a `'static` boundary protected by the
-            // `Lich<T>`.
+            // `Lich`.
             thread::spawn(move || {
                 // Borrowing may fail if the `Soul<'a>` has been dropped/severed.
                 if let Some(guard) = lich.borrow() {
                     // Call the non-static function.
                     guard(index);
                 }
-                // Allow the `Guard` and `Lich<T>` to drop such that the
-                // `Soul<'a>` can complete its `Soul::sever`.
+                // Allow the `Guard` and `Lich` to drop such that the `Soul<'a>`
+                // can complete its `Soul::sever`.
             });
         }
 
@@ -35,7 +35,7 @@ pub mod thread_spawn_bridge {
         // Note that this may block this thread if there still are active borrows at the
         // time of drop.
         //
-        // Note that the `Lich<T>`es do not need be `redeem`ed.
+        // Note that the `Lich`es do not need be `redeem`ed.
         soul
     }
 }
