@@ -74,9 +74,8 @@ impl<T: ?Sized> Lich<T> {
 
 /// Binds the lifetime of `value` to a [`Lich<T>`] and [`Soul<'a>`] pair.
 ///
-/// The returned [`Lich<T>`] and [`Soul<'a>`] are intrinsically
-/// linked. They will both [`panic`] on drop and must be sent to [`redeem`] to
-/// be disposed.
+/// The returned [`Lich<T>`] and [`Soul<'a>`] will both **[`panic`] on drop**
+/// and **must** be sent to [`redeem`] to be disposed.
 pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
     let pointer = S::shroud(value);
     (
