@@ -14,7 +14,7 @@ use syn::{
 pub struct Shroud {
     pub span: Span,
     pub dynamic: bool,
-    pub default: bool,
+    pub combine: bool,
     pub paths: Vec<ExprPath>,
     pub assigns: Vec<ExprAssign>,
 }
@@ -35,7 +35,7 @@ impl Parse for Shroud {
                     end: None,
                     limits: RangeLimits::HalfOpen(_),
                     ..
-                }) => shroud.default = true,
+                }) => shroud.combine = true,
                 Expr::Path(path) => shroud.paths.push(path),
                 Expr::Assign(assign) => shroud.assigns.push(assign),
                 expression => {
@@ -54,24 +54,18 @@ impl Shroud {
         Self {
             span,
             dynamic: false,
-            default: false,
+            combine: false,
             paths: Vec::new(),
             assigns: Vec::new(),
         }
     }
 
-    pub fn dynamic(self, dynamic: bool) -> Self {
-        Self { dynamic, ..self }
-    }
-
-    pub fn path(mut self, path: ExprPath) -> Self {
-        self.paths.push(path);
-        self
-    }
-
-    pub fn paths(mut self, paths: impl IntoIterator<Item = ExprPath>) -> Self {
-        self.paths.extend(paths);
-        self
+    pub fn paths(&self) -> Vec<Vec<&ExprPath>> {
+        if self.combine {
+            combinations(&self.paths)
+        } else {
+            vec![self.paths.iter().collect()]
+        }
     }
 }
 
@@ -124,4 +118,65 @@ fn join<S: AsRef<str>, I: AsRef<str>>(separator: S, items: impl IntoIterator<Ite
         buffer.push_str(item.as_ref());
     }
     buffer
+}
+
+fn combinations<T>(mut items: &[T]) -> Vec<Vec<&T>> {
+    let mut groups = Vec::with_capacity(items.len() * items.len());
+    groups.push(Vec::new());
+    while let Some((head, tail)) = items.split_first() {
+        groups.push(vec![head]);
+        for size in 1..=tail.len() {
+            for index in 0..=tail.len() - size {
+                let mut group = Vec::with_capacity(size + 1);
+                group.push(head);
+                group.extend(&tail[index..index + size]);
+                groups.push(group);
+            }
+        }
+        items = tail;
+    }
+    groups
+}
+
+#[test]
+fn produces_all_combinations() {
+    assert_eq!(combinations::<usize>(&[]), vec![vec![&0usize; 0]]);
+    assert_eq!(combinations(&['a']), vec![vec![], vec![&'a']]);
+    assert_eq!(
+        combinations(&['a', 'b']),
+        vec![vec![], vec![&'a'], vec![&'a', &'b'], vec![&'b']]
+    );
+    assert_eq!(
+        combinations(&['a', 'b', 'c']),
+        vec![
+            vec![],
+            vec![&'a'],
+            vec![&'a', &'b'],
+            vec![&'a', &'c'],
+            vec![&'a', &'b', &'c'],
+            vec![&'b'],
+            vec![&'b', &'c'],
+            vec![&'c']
+        ]
+    );
+    assert_eq!(
+        combinations(&['a', 'b', 'c', 'd']),
+        vec![
+            vec![],
+            vec![&'a'],
+            vec![&'a', &'b'],
+            vec![&'a', &'c'],
+            vec![&'a', &'d'],
+            vec![&'a', &'b', &'c'],
+            vec![&'a', &'c', &'d'],
+            vec![&'a', &'b', &'c', &'d'],
+            vec![&'b'],
+            vec![&'b', &'c'],
+            vec![&'b', &'d'],
+            vec![&'b', &'c', &'d'],
+            vec![&'c'],
+            vec![&'c', &'d'],
+            vec![&'d']
+        ]
+    );
 }

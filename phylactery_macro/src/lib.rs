@@ -4,33 +4,42 @@ mod shroud;
 use crate::shroud::Shroud;
 use quote::{quote, quote_spanned};
 use syn::{
-    ConstParam, ExprPath, GenericParam, Generics, ItemTrait, LifetimeParam, TraitItem,
-    TraitItemType, TypeParam, parse_macro_input, parse_quote_spanned,
+    ConstParam, GenericParam, Generics, ItemTrait, LifetimeParam, TraitItem, TraitItemType,
+    TypeParam, parse_macro_input,
 };
 
 /// A convenience macro to implement the [`Shroud<T>`] trait for a given trait.
-/// It can also handle implementing [`Shroud<T>`] for all combinations of
-/// [`Send`], [`Sync`] and [`Unpin`] (ex: `dyn Trait + Send `,
-/// `dyn Trait + Sync`, `dyn Trait + Send + Unpin`, etc.).
+/// The macro is applied to a trait directly because it will derive blanket
+/// implementations of [`Shroud<T>`] for all `T: Trait`. It can also handle
+/// implementing [`Shroud<T>`] for all combinations of marker traits [`Send`],
+/// [`Sync`] and [`Unpin`] (ex: `dyn Trait + Send `, `dyn Trait + Sync`, `dyn
+/// Trait + Send + Unpin`, etc.).
 ///
 /// # Usage
 ///
 /// ```
 /// use phylactery::shroud;
 ///
+/// // Generates `impl<T: Simple> Shroud<T> for dyn Simple`.
 /// #[shroud]
 /// pub trait Simple {}
 ///
-/// // Generates all common implementations of [`Shroud<T>`] including all
-/// // the combinations of `dyn Trait` with `Send`, `Sync` and `Unpin`.
-/// #[shroud(..)]
-/// pub trait Default {}
+/// // The `..` will generate implementations for all combinations of the specified
+/// // traits. In this case `dyn Combine`, `dyn Combine + Send`, `dyn Combine + Sync + Unpin`,
+/// // `dyn Combine + Send + Sync + Unpin`, etc. Be wary that the number of implementations
+/// // can be very large if used with many traits.
+/// #[shroud(Send, Sync, Unpin, ..)]
+/// pub trait Combine {}
 ///
+/// // Instead of `..`, the combinations can be specified manually by adding multiple `#[shroud]`.
 /// #[shroud]
 /// #[shroud(Send)]
 /// #[shroud(Sync)]
 /// #[shroud(Send, Sync)]
-/// #[shroud(A = usize, Self)]
+/// // `Self` means that the implementation will be for
+/// // `Shroud<dyn Trait> for dyn Trait` rather than a blanket implementation.
+/// // In that case, associated types must be specified explicitly (here with `A = usize`).
+/// #[shroud(Self, A = usize)]
 /// pub trait Complex<'a, T: Debug, U: FromStr + 'a, const N: usize>: Simple
 /// where
 ///     for<'b> &'b T: Display,
@@ -64,50 +73,6 @@ pub fn shroud(
         items,
         ..
     } = &item;
-    let mut default = None;
-    shrouds.retain(|shroud| {
-        if shroud.default {
-            default = Some(shroud.clone());
-            false
-        } else {
-            true
-        }
-    });
-    if let Some(shroud) = default {
-        let send: ExprPath = parse_quote_spanned!(shroud.span => Send);
-        let sync: ExprPath = parse_quote_spanned!(shroud.span => Sync);
-        let unpin: ExprPath = parse_quote_spanned!(shroud.span => Unpin);
-        for dynamic in [true, false] {
-            shrouds.push(shroud.clone().dynamic(dynamic));
-            shrouds.push(shroud.clone().dynamic(dynamic).path(send.clone()));
-            shrouds.push(shroud.clone().dynamic(dynamic).path(sync.clone()));
-            shrouds.push(shroud.clone().dynamic(dynamic).path(unpin.clone()));
-            shrouds.push(
-                shroud
-                    .clone()
-                    .dynamic(dynamic)
-                    .paths([send.clone(), sync.clone()]),
-            );
-            shrouds.push(
-                shroud
-                    .clone()
-                    .dynamic(dynamic)
-                    .paths([send.clone(), unpin.clone()]),
-            );
-            shrouds.push(
-                shroud
-                    .clone()
-                    .dynamic(dynamic)
-                    .paths([sync.clone(), unpin.clone()]),
-            );
-            shrouds.push(shroud.clone().dynamic(dynamic).paths([
-                send.clone(),
-                sync.clone(),
-                unpin.clone(),
-            ]));
-        }
-    }
-
     let parameters = params.iter().collect::<Vec<_>>();
     let parameter_names = parameters
         .iter()
@@ -128,26 +93,32 @@ pub fn shroud(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let implementations = shrouds.into_iter().map(|Shroud { span, dynamic, paths, assigns, .. }|
-        if dynamic {
-            quote_spanned!(span =>
-                impl<'__life_in__, '__life_out__: '__life_in__, #(#parameters,)*> ::phylactery::shroud::Shroud<dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__> for dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_out__ #where_clause {
-                    #[inline(always)]
-                    fn shroud(from: &(dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__)) -> ::core::ptr::NonNull<Self> {
-                        unsafe { ::core::ptr::NonNull::new_unchecked(from as *const _ as *mut _) }
+    let implementations = shrouds
+        .iter()
+        .flat_map(|shroud| shroud
+            .paths()
+            .into_iter()
+            .map(|paths| (shroud.span, shroud.dynamic, shroud.assigns.clone(), paths)))
+        .map(|(span, dynamic, assigns, paths)| {
+            if dynamic {
+                quote_spanned!(span =>
+                    impl<'__life_in__, '__life_out__: '__life_in__, #(#parameters,)*> ::phylactery::shroud::Shroud<dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__> for dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_out__ #where_clause {
+                        #[inline(always)]
+                        fn shroud(from: &(dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__)) -> ::core::ptr::NonNull<Self> {
+                            unsafe { ::core::ptr::NonNull::new_unchecked(from as *const _ as *mut _) }
+                        }
                     }
-                }
-            )
-        } else {
-            quote_spanned!(span =>
-                impl<'__life__, #(#parameters,)* __TConcrete__: #ident<#(#parameter_names,)*> #(+ #paths)*> ::phylactery::shroud::Shroud<__TConcrete__> for dyn #ident<#(#parameter_names,)* #(#associates = __TConcrete__::#associates,)*> #(+ #paths)* + '__life__ #where_clause {
-                    #[inline(always)]
-                    fn shroud(from: &__TConcrete__) -> ::core::ptr::NonNull<Self> {
-                        unsafe { ::core::ptr::NonNull::new_unchecked(from as *const __TConcrete__ as *const Self as *mut Self) }
+                )
+            } else {
+                quote_spanned!(span =>
+                    impl<'__life__, #(#parameters,)* __TConcrete__: #ident<#(#parameter_names,)*> #(+ #paths)*> ::phylactery::shroud::Shroud<__TConcrete__> for dyn #ident<#(#parameter_names,)* #(#associates = __TConcrete__::#associates,)*> #(+ #paths)* + '__life__ #where_clause {
+                        #[inline(always)]
+                        fn shroud(from: &__TConcrete__) -> ::core::ptr::NonNull<Self> {
+                            unsafe { ::core::ptr::NonNull::new_unchecked(from as *const __TConcrete__ as *const Self as *mut Self) }
+                        }
                     }
-                }
-            )
-        }
-    );
+                )
+            }
+        });
     quote! { #item #(#implementations)* }.into()
 }
