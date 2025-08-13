@@ -5,7 +5,7 @@ pub mod scoped_static_logger {
     use core::{cell::RefCell, fmt::Display};
     use phylactery::{
         cell::{Lich, redeem, ritual},
-        shroud,
+        shroud::shroud,
     };
 
     // Use the convenience macro to automatically implement the required `Shroud`

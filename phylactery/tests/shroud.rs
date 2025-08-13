@@ -4,7 +4,7 @@ use core::{
     fmt::{Debug, Display},
     str::FromStr,
 };
-use phylactery::{shroud, shroud::Shroud};
+use phylactery::shroud::{Shroud, shroud};
 
 #[shroud]
 pub trait Simple {}
@@ -17,22 +17,22 @@ pub fn simple<S: Simple>(simple: &S) {
 #[shroud(Self, Send, Sync, Unpin, ..)]
 pub trait Combine {}
 
-pub fn default<D: Combine + Send + Sync + Unpin>(default: &D) {
-    <dyn Combine>::shroud(default);
-    <dyn Combine + Send>::shroud(default);
-    <dyn Combine + Sync>::shroud(default);
-    <dyn Combine + Unpin>::shroud(default);
-    <dyn Combine + Send + Unpin>::shroud(default);
-    <dyn Combine + Sync + Unpin>::shroud(default);
-    <dyn Combine + Send + Sync + Unpin>::shroud(default);
+pub fn combine<T: Combine + Send + Sync + Unpin>(combine: &T) {
+    <dyn Combine>::shroud(combine);
+    <dyn Combine + Send>::shroud(combine);
+    <dyn Combine + Sync>::shroud(combine);
+    <dyn Combine + Unpin>::shroud(combine);
+    <dyn Combine + Send + Unpin>::shroud(combine);
+    <dyn Combine + Sync + Unpin>::shroud(combine);
+    <dyn Combine + Send + Sync + Unpin>::shroud(combine);
 
-    <dyn Combine>::shroud(default as &dyn Combine);
-    <dyn Combine + Send>::shroud(default as &(dyn Combine + Send));
-    <dyn Combine + Sync>::shroud(default as &(dyn Combine + Sync));
-    <dyn Combine + Unpin>::shroud(default as &(dyn Combine + Unpin));
-    <dyn Combine + Send + Unpin>::shroud(default as &(dyn Combine + Send + Unpin));
-    <dyn Combine + Sync + Unpin>::shroud(default as &(dyn Combine + Sync + Unpin));
-    <dyn Combine + Send + Sync + Unpin>::shroud(default as &(dyn Combine + Send + Sync + Unpin));
+    <dyn Combine>::shroud(combine as &dyn Combine);
+    <dyn Combine + Send>::shroud(combine as &(dyn Combine + Send));
+    <dyn Combine + Sync>::shroud(combine as &(dyn Combine + Sync));
+    <dyn Combine + Unpin>::shroud(combine as &(dyn Combine + Unpin));
+    <dyn Combine + Send + Unpin>::shroud(combine as &(dyn Combine + Send + Unpin));
+    <dyn Combine + Sync + Unpin>::shroud(combine as &(dyn Combine + Sync + Unpin));
+    <dyn Combine + Send + Sync + Unpin>::shroud(combine as &(dyn Combine + Send + Sync + Unpin));
 }
 
 #[shroud]
