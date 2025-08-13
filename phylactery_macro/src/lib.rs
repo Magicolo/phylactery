@@ -18,7 +18,7 @@ use syn::{
 /// # Usage
 ///
 /// ```
-/// use phylactery::shroud;
+/// # use phylactery_macro::shroud;
 ///
 /// // Generates `impl<T: Simple> Shroud<T> for dyn Simple`.
 /// #[shroud]

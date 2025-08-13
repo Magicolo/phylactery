@@ -13,25 +13,26 @@ pub fn simple<S: Simple>(simple: &S) {
     <dyn Simple>::shroud(simple);
 }
 
-#[shroud(..)]
-pub trait Default {}
+#[shroud(Send, Sync, Unpin, ..)]
+#[shroud(Self, Send, Sync, Unpin, ..)]
+pub trait Combine {}
 
-pub fn default<D: Default + Send + Sync + Unpin>(default: &D) {
-    <dyn Default>::shroud(default);
-    <dyn Default + Send>::shroud(default);
-    <dyn Default + Sync>::shroud(default);
-    <dyn Default + Unpin>::shroud(default);
-    <dyn Default + Send + Unpin>::shroud(default);
-    <dyn Default + Sync + Unpin>::shroud(default);
-    <dyn Default + Send + Sync + Unpin>::shroud(default);
+pub fn default<D: Combine + Send + Sync + Unpin>(default: &D) {
+    <dyn Combine>::shroud(default);
+    <dyn Combine + Send>::shroud(default);
+    <dyn Combine + Sync>::shroud(default);
+    <dyn Combine + Unpin>::shroud(default);
+    <dyn Combine + Send + Unpin>::shroud(default);
+    <dyn Combine + Sync + Unpin>::shroud(default);
+    <dyn Combine + Send + Sync + Unpin>::shroud(default);
 
-    <dyn Default>::shroud(default as &dyn Default);
-    <dyn Default + Send>::shroud(default as &(dyn Default + Send));
-    <dyn Default + Sync>::shroud(default as &(dyn Default + Sync));
-    <dyn Default + Unpin>::shroud(default as &(dyn Default + Unpin));
-    <dyn Default + Send + Unpin>::shroud(default as &(dyn Default + Send + Unpin));
-    <dyn Default + Sync + Unpin>::shroud(default as &(dyn Default + Sync + Unpin));
-    <dyn Default + Send + Sync + Unpin>::shroud(default as &(dyn Default + Send + Sync + Unpin));
+    <dyn Combine>::shroud(default as &dyn Combine);
+    <dyn Combine + Send>::shroud(default as &(dyn Combine + Send));
+    <dyn Combine + Sync>::shroud(default as &(dyn Combine + Sync));
+    <dyn Combine + Unpin>::shroud(default as &(dyn Combine + Unpin));
+    <dyn Combine + Send + Unpin>::shroud(default as &(dyn Combine + Send + Unpin));
+    <dyn Combine + Sync + Unpin>::shroud(default as &(dyn Combine + Sync + Unpin));
+    <dyn Combine + Send + Sync + Unpin>::shroud(default as &(dyn Combine + Send + Sync + Unpin));
 }
 
 #[shroud]

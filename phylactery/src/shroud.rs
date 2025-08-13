@@ -12,78 +12,10 @@ use core::ptr::NonNull;
 /// Note that it is already implemented for `Fn(T0, .., T7) -> T` and its
 /// combinations with [`Send`], [`Sync`] and [`Unpin`].
 ///
-/// See the [`crate::shroud!`] macro for convenient implementation.
+/// See the `#[shroud]` macro for convenient implementation.
 pub trait Shroud<T: ?Sized> {
     fn shroud(from: &T) -> NonNull<Self>;
 }
-
-// ///
-// ///
-// /// # Usage
-// ///
-// /// The [`crate::shroud!`] macro is used to implement the [`Shroud<T>`] trait
-// /// for a target trait object.
-// ///
-// /// ```
-// /// use phylactery::shroud;
-// ///
-// /// pub trait Trait1 { }
-// /// pub trait Trait2 { }
-// ///
-// /// // This implements `shroud::Shroud<T: Trait1> for dyn Trait1`.
-// /// shroud!(Trait1);
-// /// // This implements `shroud::Shroud<T: Trait2> for dyn Trait2` with all
-// combinations of `Send`, `Sync` and `Unpin`. /// shroud!(Trait2+);
-// /// ```
-// #[macro_export]
-// macro_rules! shroud {
-//     ($type: ident) => {
-//         shroud!(@TRAIT { type: $type, generics: (), traits: () });
-//     };
-//     ($type: ident +) => {
-//         shroud!(@TRAIT { type: $type, generics: (), traits: ((Send), (Sync),
-// (Unpin), (Send, Sync), (Send, Unpin), (Sync, Unpin), (Send, Sync, Unpin)) });
-//     };
-//     ($type: ident $(+ $trait: ident)+) => {
-//         shroud!(@TRAIT { type: $type, generics: (), traits: (($($trait),*))
-// });     };
-//     ($type: ident<$($generic: ident),* $(,)?>) => {
-//         shroud!(@TRAIT { type: $type, generics: ($($generic),*), traits: ()
-// });     };
-//     ($type: ident<$($generic: ident),* $(,)?> +) => {
-//         shroud!(@TRAIT { type: $type, generics: ($($generic),*), traits:
-// ((Send), (Sync), (Unpin), (Send, Sync), (Send, Unpin), (Sync, Unpin), (Send,
-// Sync, Unpin)) });     };
-//     ($type: ident<$($generic: ident),* $(,)?> $(+ $trait: ident)+) => {
-//         shroud!(@TRAIT { type: $type, generics: ($($generic),*), traits:
-// (($($trait),*)) });     };
-//     (@TRAIT { type: $type: ident, generics: $generics: tt, traits: () $(,)?
-// }) => {         shroud!(@IMPLEMENT { type: $type, generics: $generics,
-// traits: () });     };
-//     (@TRAIT { type: $type: ident, generics: $generics: tt, traits: ($trait:
-// tt $(, $traits: tt)*) $(,)? }) => {         shroud!(@TRAIT { type: $type,
-// generics: $generics, traits: ($($traits),*) });         shroud!(@IMPLEMENT {
-// type: $type, generics: $generics, traits: $trait });     };
-//     (@IMPLEMENT { type: $type: ident, generics: ($($generic: ident),*),
-// traits: ($($trait: path),*) $(,)? }) => {         impl<$($generic,)*>
-// $crate::shroud::Shroud<dyn $type<$($generic),*> $(+ $trait)*> for dyn
-// $type<$($generic),*> $(+ $trait)* {             #[inline(always)]
-//             fn shroud(from: &(dyn $type<$($generic),*> $(+ $trait)*)) ->
-// ::core::ptr::NonNull<Self> {                 // # Safety
-//                 // The pointer is trivially non-null as per rust's reference
-// guarantees.                 unsafe { ::core::ptr::NonNull::new_unchecked(from
-// as *const _ as *const Self as *mut _) }             }
-//         }
-
-//         impl<$($generic,)* TConcrete: $type<$($generic),*> $(+ $trait)*>
-// $crate::shroud::Shroud<TConcrete> for dyn $type<$($generic),*> $(+ $trait)* {
-//             #[inline(always)]
-//             fn shroud(from: &TConcrete) -> ::core::ptr::NonNull<Self> {
-//                 unsafe { ::core::ptr::NonNull::new_unchecked(from as *const
-// TConcrete as *const Self as *mut _) }             }
-//         }
-//     };
-// }
 
 macro_rules! shroud_fn {
     ($function: ident($(,)?) -> $return: ident) => {
