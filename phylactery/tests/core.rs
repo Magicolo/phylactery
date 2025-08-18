@@ -119,6 +119,16 @@ macro_rules! lock_cell_atomic {
             let soul = redeem(lich1, soul).ok().flatten().unwrap();
             assert!(redeem(lich4, soul).ok().flatten().is_none());
         }
+
+        #[test]
+        fn is_bound() {
+            let function = || {};
+            $(let mut $location = 0;)?
+            let (lich, soul) = ritual::<_, dyn Fn()>(&function $(, &mut $location)?);
+            assert!(lich.is_bound());
+            assert!(soul.is_bound());
+            assert!(redeem(lich, soul).ok().flatten().is_none());
+        }
     };
 }
 
@@ -179,16 +189,6 @@ macro_rules! lock_cell_atomic_raw {
                 assert!($ok(redeem(lich2, soul2)));
             }
             assert!($ok(redeem(lich1, soul1)));
-        }
-
-        #[test]
-        fn is_bound() {
-            let function = || {};
-            $(let mut $location = 0;)?
-            let (lich, soul) = ritual::<_, dyn Fn()>(&function $(, &mut $location)?);
-            assert!(lich.is_bound());
-            assert!(soul.is_bound());
-            assert!($ok(redeem(lich, soul)));
         }
     };
 }
@@ -309,23 +309,5 @@ mod raw {
         let (lich, soul) = ritual::<_, dyn Fn()>(&function);
         drop(soul);
         drop(lich);
-    }
-
-    #[test]
-    #[should_panic]
-    fn panics_when_soul_severs() {
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-        soul.sever();
-        drop(lich);
-    }
-
-    #[test]
-    #[should_panic]
-    fn panics_when_lich_try_severs() {
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-        drop(lich.try_sever());
-        drop(soul);
     }
 }

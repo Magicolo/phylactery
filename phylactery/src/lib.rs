@@ -7,6 +7,7 @@ pub mod atomic;
 pub mod cell;
 #[cfg(feature = "lock")]
 pub mod lock;
+pub mod pointer;
 pub mod raw;
 pub mod shroud;
 use core::{mem::ManuallyDrop, ptr::drop_in_place};

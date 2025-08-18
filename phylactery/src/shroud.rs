@@ -59,8 +59,8 @@ pub use phylactery_macro::shroud;
 /// combinations with [`Send`], [`Sync`] and [`Unpin`].
 ///
 /// See the [`shroud`] macro for convenient implementation.
-pub trait Shroud<T: ?Sized> {
-    fn shroud(from: &T) -> NonNull<Self>;
+pub unsafe trait Shroud<T: ?Sized> {
+    fn shroud(from: *const T) -> NonNull<Self>;
 }
 
 macro_rules! shroud_fn {
@@ -89,16 +89,16 @@ macro_rules! shroud_fn {
         shroud_fn!(@IMPLEMENT { function: $function, parameters: $parameters, return: $return, traits: $trait });
     };
     (@IMPLEMENT { function: $function: ident, parameters: ($($parameter: ident),*), return: $return: ident, traits: ($($trait: path),*) $(,)? }) => {
-        impl<$($parameter,)* $return> $crate::shroud::Shroud<dyn $function($($parameter),*) -> $return $(+ $trait)*> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
+        unsafe impl<$($parameter,)* $return> $crate::shroud::Shroud<dyn $function($($parameter),*) -> $return $(+ $trait)*> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
             #[inline(always)]
-            fn shroud(from: &(dyn $function($($parameter),*) -> $return $(+ $trait)*)) -> ::core::ptr::NonNull<Self> {
+            fn shroud(from: *const (dyn $function($($parameter),*) -> $return $(+ $trait)*)) -> ::core::ptr::NonNull<Self> {
                 unsafe { ::core::ptr::NonNull::new_unchecked(from as *const _ as *const Self as *mut _) }
             }
         }
 
-        impl<$($parameter,)* $return, TConcrete: $function($($parameter),*) -> $return $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
+        unsafe impl<$($parameter,)* $return, TConcrete: $function($($parameter),*) -> $return $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
             #[inline(always)]
-            fn shroud(from: &TConcrete) -> ::core::ptr::NonNull<Self> {
+            fn shroud(from: *const TConcrete) -> ::core::ptr::NonNull<Self> {
                 unsafe { ::core::ptr::NonNull::new_unchecked(from as *const _ as *const Self as *mut _) }
             }
         }
