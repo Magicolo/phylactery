@@ -66,7 +66,7 @@ pub fn shroud(
                     unsafe impl<'__life_in__, '__life_out__: '__life_in__, #(#parameters,)*> ::phylactery::shroud::Shroud<dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__> for dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_out__ #where_clause {
                         #[inline(always)]
                         fn shroud(from: *const (dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__)) -> ::core::ptr::NonNull<Self> {
-                            unsafe { ::core::ptr::NonNull::new_unchecked(from as *mut Self) }
+                            ::core::ptr::NonNull::new(from as *mut Self).expect("null pointer")
                         }
                     }
                 )
@@ -75,7 +75,7 @@ pub fn shroud(
                     unsafe impl<'__life__, #(#parameters,)* __TConcrete__: #ident<#(#parameter_names,)*> #(+ #paths)*> ::phylactery::shroud::Shroud<__TConcrete__> for dyn #ident<#(#parameter_names,)* #(#associates = __TConcrete__::#associates,)*> #(+ #paths)* + '__life__ #where_clause {
                         #[inline(always)]
                         fn shroud(from: *const __TConcrete__) -> ::core::ptr::NonNull<Self> {
-                            unsafe { ::core::ptr::NonNull::new_unchecked(from as *const Self as *mut Self) }
+                            ::core::ptr::NonNull::new(from as *const Self as *mut Self).expect("null pointer")
                         }
                     }
                 )

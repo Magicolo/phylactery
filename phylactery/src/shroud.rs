@@ -92,14 +92,14 @@ macro_rules! shroud_fn {
         unsafe impl<$($parameter,)* $return> $crate::shroud::Shroud<dyn $function($($parameter),*) -> $return $(+ $trait)*> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
             #[inline(always)]
             fn shroud(from: *const (dyn $function($($parameter),*) -> $return $(+ $trait)*)) -> ::core::ptr::NonNull<Self> {
-                unsafe { ::core::ptr::NonNull::new_unchecked(from as *const _ as *const Self as *mut _) }
+                ::core::ptr::NonNull::new(from as *const _ as *const Self as *mut _).expect("null pointer")
             }
         }
 
         unsafe impl<$($parameter,)* $return, TConcrete: $function($($parameter),*) -> $return $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
             #[inline(always)]
             fn shroud(from: *const TConcrete) -> ::core::ptr::NonNull<Self> {
-                unsafe { ::core::ptr::NonNull::new_unchecked(from as *const _ as *const Self as *mut _) }
+                ::core::ptr::NonNull::new(from as *const _ as *const Self as *mut _).expect("null pointer")
             }
         }
     };

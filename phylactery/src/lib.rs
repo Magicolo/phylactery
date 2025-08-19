@@ -7,7 +7,6 @@ pub mod atomic;
 pub mod cell;
 #[cfg(feature = "lock")]
 pub mod lock;
-pub mod pointer;
 pub mod raw;
 pub mod shroud;
 use core::{mem::ManuallyDrop, ptr::drop_in_place};
@@ -51,6 +50,15 @@ pub trait Sever {
 
 pub trait TrySever {
     fn try_sever(&mut self) -> Option<bool>;
+}
+
+/// # Safety
+///
+/// It **must** be the case that the pointer returned by the [`AsPtr::as_ptr`]
+/// method is valid, non-null, aligned and lives for as long as `Self` lives.
+pub unsafe trait Pointer {
+    type Target: ?Sized;
+    fn pointer(&self) -> *const Self::Target;
 }
 
 unsafe impl<T: ?Sized, B: Binding<Data<T>: Send> + ?Sized> Send for Lich<T, B> {}
@@ -167,6 +175,49 @@ impl<T: ?Sized, B: Binding + ?Sized> Drop for Lich<T, B> {
 impl<B: Binding + ?Sized> Drop for Soul<'_, B> {
     fn drop(&mut self) {
         self.0.sever();
+    }
+}
+
+#[cfg(feature = "std")]
+unsafe impl<T: ?Sized> Pointer for std::boxed::Box<T> {
+    type Target = T;
+
+    fn pointer(&self) -> *const Self::Target {
+        Self::as_ref(self)
+    }
+}
+
+#[cfg(feature = "std")]
+unsafe impl<T: ?Sized> Pointer for std::sync::Arc<T> {
+    type Target = T;
+
+    fn pointer(&self) -> *const Self::Target {
+        Self::as_ptr(self)
+    }
+}
+
+#[cfg(feature = "std")]
+unsafe impl<T: ?Sized> Pointer for std::rc::Rc<T> {
+    type Target = T;
+
+    fn pointer(&self) -> *const Self::Target {
+        Self::as_ptr(self)
+    }
+}
+
+unsafe impl<T: ?Sized> Pointer for &T {
+    type Target = T;
+
+    fn pointer(&self) -> *const Self::Target {
+        *self
+    }
+}
+
+unsafe impl<T: ?Sized> Pointer for &mut T {
+    type Target = T;
+
+    fn pointer(&self) -> *const Self::Target {
+        *self
     }
 }
 

@@ -7,15 +7,15 @@
 //! overhead. The [`Lich<T>`] and [`Soul<P>`] are simple new-type wrappers
 //! around raw pointers.
 
-use crate::{pointer::Pointer, shroud::Shroud};
+use crate::{Pointer, shroud::Shroud};
 use core::{
-    mem::forget,
+    mem::{ManuallyDrop, forget},
+    ops::Deref,
     ptr::{self, NonNull, read},
 };
 
 pub struct Lich<T: ?Sized>(NonNull<T>);
-pub struct Soul<P: ?Sized>(P);
-type Pair<T, P> = (Lich<T>, Soul<P>);
+pub struct Soul<P: ?Sized>(usize, P);
 
 unsafe impl<T: ?Sized> Send for Lich<T> where for<'a> &'a T: Send {}
 unsafe impl<T: ?Sized> Sync for Lich<T> where for<'a> &'a T: Sync {}
@@ -28,53 +28,117 @@ impl<T: ?Sized> Lich<T> {
     /// active will invalidate the pointer, leading to a `use-after-free`
     /// vulnerability.
     ///
-    /// The [`Raw`] variant offers no runtime checks to prevent this. It is the
+    /// This variant offers no runtime checks to prevent this. It is the
     /// caller's responsibility to uphold this safety contract.
-    pub unsafe fn borrow(&self) -> &T {
+    pub unsafe fn get(&self) -> &T {
         unsafe { self.0.as_ref() }
     }
 }
 
 impl<T: ?Sized> Drop for Lich<T> {
     fn drop(&mut self) {
-        sever_panic();
+        panic();
+    }
+}
+
+impl<P> Soul<P> {
+    pub const fn new(pointer: P) -> Self {
+        Self(0, pointer)
+    }
+
+    pub fn try_sever(self) -> Result<P, Self> {
+        if self.is_bound() {
+            Err(self)
+        } else {
+            Ok(unsafe { self.sever() })
+        }
+    }
+
+    /// # Safety
+    ///
+    /// The caller must ensure that this [`Soul<P>`] has not bindings left
+    /// (`self.bindings() == 0`) by [`Self::redeem`]ing all [`Lich<T>`] that
+    /// have been bound to it.
+    unsafe fn sever(self) -> P {
+        debug_assert_eq!(self.bindings(), 0);
+        // Even with a call to `is_bound` with a `panic!`, this method is always
+        // `unsafe` to call. It is not enough that this thread panics to ensure safety;
+        // all threads that have access to a bound `Lich` would need to panic as well.
+        unsafe { read(&ManuallyDrop::new(self).1) }
+    }
+}
+
+impl<P: ?Sized> Soul<P> {
+    /// This method will only give out a mutable reference to `P` if no bindings
+    /// to this [`Soul<P>`] remain.
+    pub const fn get_mut(this: &mut Self) -> Option<&mut P> {
+        if this.is_bound() {
+            None
+        } else {
+            Some(&mut this.1)
+        }
+    }
+
+    pub const fn is_bound(&self) -> bool {
+        self.0 > 0
+    }
+
+    pub const fn bindings(&self) -> usize {
+        self.0
+    }
+}
+
+impl<P: Pointer> Soul<P> {
+    pub fn redeem<T: ?Sized>(&mut self, lich: Lich<T>) -> Result<bool, Lich<T>> {
+        let Some(bindings) = self.0.checked_sub(1) else {
+            return Err(lich);
+        };
+        if ptr::addr_eq(self.1.pointer(), lich.0.as_ptr()) {
+            forget(lich);
+            self.0 = bindings;
+            Ok(bindings == 0)
+        } else {
+            Err(lich)
+        }
+    }
+}
+
+impl<P: Pointer + ?Sized> Soul<P> {
+    pub fn bind<T: Shroud<P::Target> + ?Sized>(&mut self) -> Lich<T> {
+        self.0 += 1;
+        Lich(T::shroud(self.1.pointer()))
+    }
+}
+
+impl<P: Default> Default for Soul<P> {
+    fn default() -> Self {
+        Self::new(P::default())
+    }
+}
+
+impl<P: ?Sized> Deref for Soul<P> {
+    type Target = P;
+
+    fn deref(&self) -> &Self::Target {
+        &self.1
+    }
+}
+
+impl<P: ?Sized> AsRef<P> for Soul<P> {
+    fn as_ref(&self) -> &P {
+        &self.1
     }
 }
 
 impl<P: ?Sized> Drop for Soul<P> {
     fn drop(&mut self) {
-        sever_panic();
+        if self.is_bound() {
+            panic();
+        }
     }
 }
 
-/// Binds the lifetime of `value` to a [`Lich<T>`] and [`Soul<P>`] pair.
-///
-/// The returned [`Lich<T>`] and [`Soul<P>`] will both **[`panic!`] on
-/// drop** and **must** be sent to [`redeem`] to be disposed.
-pub fn ritual<P: Pointer, S: Shroud<P::Target> + ?Sized>(pointer: P) -> Pair<S, P> {
-    (Lich(S::shroud(pointer.pointer())), Soul(pointer))
-}
-
-/// Safely disposes of a [`Lich<T>`] and [`Soul<P>`] pair.
-///
-/// This function is **required** for this variant. It safely disposes of the
-/// pair, preventing their [`Drop`] implementations from [`panic!`]ing.
-///
-/// If the provided [`Lich<T>`] and [`Soul<P>`] are bound together, they are
-/// consumed and [`Ok`] is returned with the original pointer. If they are not
-/// bound together, [`Err`] is returned with the pair.
-pub fn redeem<T: ?Sized, P: Pointer>(lich: Lich<T>, soul: Soul<P>) -> Result<P, Pair<T, P>> {
-    if ptr::addr_eq(lich.0.as_ptr(), soul.0.pointer()) {
-        let pointer = unsafe { read(&soul.0) };
-        forget(soul);
-        forget(lich);
-        Ok(pointer)
-    } else {
-        Err((lich, soul))
-    }
-}
-
-fn sever_panic() -> bool {
+fn panic() -> bool {
     #[cfg(feature = "std")]
     if std::thread::panicking() {
         return false;
@@ -90,5 +154,5 @@ fn sever_panic() -> bool {
         }
     }
 
-    panic!("this `Lich<T>` must be redeemed")
+    panic!("a `Lich<T>` has not been redeemed")
 }
