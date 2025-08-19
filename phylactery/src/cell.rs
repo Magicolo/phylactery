@@ -5,25 +5,32 @@
 //! [`Rc<RefCell<T>>`] as a reference counter to track the number of active
 //! [`Lich<T>`] clones/borrows.
 
-use crate::{Sever, TrySever, shroud::Shroud};
+use crate::{Pointer, shroud::Shroud};
 use core::{
     cell::{Ref, RefCell},
     mem::ManuallyDrop,
     ops::Deref,
-    ptr::{self, NonNull, drop_in_place},
+    ptr::{self, NonNull, drop_in_place, read},
 };
 use std::rc::{Rc, Weak};
 
 pub struct Lich<T: ?Sized>(Rc<RefCell<Option<NonNull<T>>>>);
-pub struct Soul<'a>(Weak<RefCell<dyn Slot + 'a>>);
+pub struct Soul<'a, P: ?Sized + 'a>(Weak<RefCell<dyn Slot + 'a>>, P);
 pub struct Guard<'a, T: ?Sized>(Ref<'a, Option<NonNull<T>>>);
-pub type Pair<'a, T> = (Lich<T>, Soul<'a>);
+pub type Pair<'a, T, P> = (Lich<T>, Soul<'a, P>);
 
-trait Slot: Sever + TrySever {}
-impl<S: Sever + TrySever> Slot for S {}
+trait Slot {
+    fn take(&mut self) -> bool;
+}
 
-unsafe impl<'a, T: ?Sized + 'a> Send for Lich<T> where Rc<RefCell<Option<&'a T>>>: Send {}
-unsafe impl<'a, T: ?Sized + 'a> Sync for Lich<T> where Rc<RefCell<Option<&'a T>>>: Sync {}
+unsafe impl<T: ?Sized> Send for Lich<T> where Rc<RefCell<Option<Lich<T>>>>: Send {}
+unsafe impl<T: ?Sized> Sync for Lich<T> where Rc<RefCell<Option<Lich<T>>>>: Sync {}
+
+impl<T> Slot for Option<T> {
+    fn take(&mut self) -> bool {
+        self.take().is_some()
+    }
+}
 
 impl<T: ?Sized> Default for Lich<T> {
     fn default() -> Self {
@@ -84,29 +91,43 @@ impl<T: ?Sized> Drop for Lich<T> {
     }
 }
 
-impl Soul<'_> {
+impl<P: ?Sized> Soul<'_, P> {
     pub fn is_bound(&self) -> bool {
         Weak::strong_count(&self.0) > 0
     }
 
-    pub fn sever(self) -> bool {
+    fn sever_in_place(&self) -> bool {
         self.0.upgrade().as_deref().is_some_and(sever)
     }
 
-    pub fn try_sever(self) -> Result<bool, Self> {
-        self.0
-            .upgrade()
-            .as_deref()
-            .map_or(Some(false), try_sever)
-            .ok_or(self)
+    fn try_sever_in_place(&self) -> Option<bool> {
+        self.0.upgrade().as_deref().map_or(Some(false), try_sever)
     }
 }
 
-impl Drop for Soul<'_> {
-    fn drop(&mut self) {
-        if let Some(slot) = self.0.upgrade().as_deref() {
-            sever(slot);
+impl<P> Soul<'_, P> {
+    pub fn sever(self) -> P {
+        self.sever_in_place();
+        unsafe { self.consume() }
+    }
+
+    pub fn try_sever(self) -> Result<P, Self> {
+        match self.try_sever_in_place() {
+            Some(_) => Ok(unsafe { self.consume() }),
+            None => Err(self),
         }
+    }
+
+    unsafe fn consume(self) -> P {
+        let mut soul = ManuallyDrop::new(self);
+        drop_in_place(&mut soul.0);
+        unsafe { read(&soul.1) }
+    }
+}
+
+impl<P: ?Sized> Drop for Soul<'_, P> {
+    fn drop(&mut self) {
+        self.sever_in_place();
     }
 }
 
@@ -132,10 +153,10 @@ impl<T: ?Sized> AsRef<T> for Guard<'_, T> {
 ///
 /// This function allocates a [`Rc<RefCell<T>>`] on the heap to manage the
 /// reference.
-pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
-    let data = Rc::new(RefCell::new(Some(S::shroud(value))));
-    let life = Rc::downgrade(&data);
-    (Lich(data), Soul(life))
+pub fn ritual<'a, P: Pointer, S: Shroud<P::Target> + ?Sized + 'a>(pointer: P) -> Pair<'a, S, P> {
+    let strong = Rc::new(RefCell::new(Some(S::shroud(pointer.pointer()))));
+    let weak = Rc::downgrade(&strong);
+    (Lich(strong), Soul(weak, pointer))
 }
 
 /// Safely disposes of a [`Lich<T>`] and [`Soul<'a>`] pair.
@@ -149,29 +170,24 @@ pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> P
 /// [`Drop`] implementation will [`panic!`] if any remaining
 /// [`Lich<T>::borrow`] [`Guard`]s are still alive, ensuring safety. While not
 /// strictly necessary, using [`redeem`] is good practice for explicit cleanup.
-pub fn redeem<'a, T: ?Sized + 'a>(
-    lich: Lich<T>,
-    soul: Soul<'a>,
-) -> Result<Option<Soul<'a>>, Pair<'a, T>> {
+pub fn redeem<T: ?Sized, P>(lich: Lich<T>, soul: Soul<P>) -> Result<P, Soul<P>> {
     if ptr::addr_eq(Rc::as_ptr(&lich.0), Weak::as_ptr(&soul.0)) {
         let mut lich = ManuallyDrop::new(lich);
         unsafe { drop_in_place(&mut lich.0) };
         if soul.is_bound() {
-            Ok(Some(soul))
+            Err(soul)
         } else {
-            let mut soul = ManuallyDrop::new(soul);
-            unsafe { drop_in_place(&mut soul.0) };
-            Ok(None)
+            Ok(soul.sever())
         }
     } else {
-        Err((lich, soul))
+        Err(soul)
     }
 }
 
-fn sever<T: Sever + ?Sized>(cell: &RefCell<T>) -> bool {
-    cell.borrow_mut().sever()
+fn sever<T: Slot + ?Sized>(cell: &RefCell<T>) -> bool {
+    cell.borrow_mut().take()
 }
 
-fn try_sever<T: TrySever + ?Sized>(cell: &RefCell<T>) -> Option<bool> {
-    cell.try_borrow_mut().ok()?.try_sever()
+fn try_sever<T: Slot + ?Sized>(cell: &RefCell<T>) -> Option<bool> {
+    cell.try_borrow_mut().as_deref_mut().ok().map(T::take)
 }
