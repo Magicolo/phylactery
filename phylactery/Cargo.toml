@@ -16,11 +16,10 @@ rust-version = "1.79"
 github = { repository = "Magicolo/phylactery", workflow = "test" }
 
 [features]
-default = ["cell", "lock", "atomic", "shroud"]
+default = ["std", "cell", "lock", "shroud"]
 std = []
-cell = ["std"]
-lock = ["std"]
-atomic = ["atomic-wait"]
+cell = []
+lock = ["atomic-wait"]
 shroud = ["phylactery_macro"]
 
 [dependencies]
