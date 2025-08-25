@@ -9,7 +9,8 @@ pub mod cell;
 pub mod lock;
 pub mod raw;
 pub mod shroud;
-use core::{mem::ManuallyDrop, ptr::drop_in_place};
+
+use core::ptr::NonNull;
 
 pub trait Binding {
     type Data<T: ?Sized>: TrySever;
@@ -58,8 +59,11 @@ pub trait TrySever {
 /// method is valid, non-null, aligned and lives for as long as `Self` lives.
 pub unsafe trait Pointer {
     type Target: ?Sized;
-    fn pointer(&self) -> *const Self::Target;
+    fn pointer(&self) -> NonNull<Self::Target>;
 }
+
+pub unsafe trait UniquePointer: Pointer {}
+pub unsafe trait SharedPointer: Pointer + Clone {}
 
 unsafe impl<T: ?Sized, B: Binding<Data<T>: Send> + ?Sized> Send for Lich<T, B> {}
 unsafe impl<T: ?Sized, B: Binding<Data<T>: Sync> + ?Sized> Sync for Lich<T, B> {}
@@ -179,76 +183,92 @@ impl<B: Binding + ?Sized> Drop for Soul<'_, B> {
 }
 
 #[cfg(feature = "std")]
-unsafe impl<T: ?Sized> Pointer for std::boxed::Box<T> {
-    type Target = T;
+const _: () = {
+    use std::{rc::Rc, sync::Arc};
 
-    fn pointer(&self) -> *const Self::Target {
-        Self::as_ref(self)
+    unsafe impl<T: ?Sized> UniquePointer for Box<T> {}
+    unsafe impl<T: ?Sized> Pointer for Box<T> {
+        type Target = T;
+
+        fn pointer(&self) -> NonNull<Self::Target> {
+            unsafe { NonNull::new_unchecked(Self::as_ref(self) as *const _ as _) }
+        }
     }
-}
 
-#[cfg(feature = "std")]
-unsafe impl<T: ?Sized> Pointer for std::sync::Arc<T> {
-    type Target = T;
+    unsafe impl<T: ?Sized> SharedPointer for Arc<T> {}
+    unsafe impl<T: ?Sized> Pointer for Arc<T> {
+        type Target = T;
 
-    fn pointer(&self) -> *const Self::Target {
-        Self::as_ptr(self)
+        fn pointer(&self) -> NonNull<Self::Target> {
+            unsafe { NonNull::new_unchecked(Self::as_ptr(self) as _) }
+        }
     }
-}
 
-#[cfg(feature = "std")]
-unsafe impl<T: ?Sized> Pointer for std::rc::Rc<T> {
-    type Target = T;
+    unsafe impl<T: ?Sized> SharedPointer for Rc<T> {}
+    unsafe impl<T: ?Sized> Pointer for Rc<T> {
+        type Target = T;
 
-    fn pointer(&self) -> *const Self::Target {
-        Self::as_ptr(self)
+        fn pointer(&self) -> NonNull<Self::Target> {
+            unsafe { NonNull::new_unchecked(Self::as_ptr(self) as _) }
+        }
     }
-}
+};
 
+unsafe impl<T: ?Sized> SharedPointer for &T {}
 unsafe impl<T: ?Sized> Pointer for &T {
     type Target = T;
 
-    fn pointer(&self) -> *const Self::Target {
-        *self
+    fn pointer(&self) -> NonNull<Self::Target> {
+        unsafe { NonNull::new_unchecked(*self as *const _ as _) }
     }
 }
 
+unsafe impl<T: ?Sized> UniquePointer for &mut T {}
 unsafe impl<T: ?Sized> Pointer for &mut T {
     type Target = T;
 
-    fn pointer(&self) -> *const Self::Target {
+    fn pointer(&self) -> NonNull<Self::Target> {
+        unsafe { NonNull::new_unchecked(*self as *const _ as _) }
+    }
+}
+
+unsafe impl<T: ?Sized> SharedPointer for *const T {}
+unsafe impl<T: ?Sized> Pointer for *const T {
+    type Target = T;
+
+    fn pointer(&self) -> NonNull<Self::Target> {
+        NonNull::new(*self as _).expect("null pointer")
+    }
+}
+
+unsafe impl<T: ?Sized> UniquePointer for *mut T {}
+unsafe impl<T: ?Sized> Pointer for *mut T {
+    type Target = T;
+
+    fn pointer(&self) -> NonNull<Self::Target> {
+        NonNull::new(*self).expect("null pointer")
+    }
+}
+
+unsafe impl<T: ?Sized> Pointer for NonNull<T> {
+    type Target = T;
+
+    fn pointer(&self) -> NonNull<Self::Target> {
         *self
     }
 }
 
-fn redeem<'a, T: ?Sized + 'a, B: Binding + ?Sized, const BOUND: bool>(
-    lich: Lich<T, B>,
-    soul: Soul<'a, B>,
-) -> Result<Option<Soul<'a, B>>, Pair<'a, T, B>> {
-    if B::are_bound(&lich.0, &soul.0) {
-        let mut lich = ManuallyDrop::new(lich);
-        unsafe { drop_in_place(&mut lich.0) };
-        if BOUND && B::is_life_bound(&soul.0) {
-            Ok(Some(soul))
-        } else {
-            let mut soul = ManuallyDrop::new(soul);
-            unsafe { drop_in_place(&mut soul.0) };
-            Ok(None)
-        }
-    } else {
-        Err((lich, soul))
-    }
+macro_rules! fail {
+    ($function: ident, $block: block) => {
+        #[doc = concat!("```compile_fail\n", stringify!($block), "\n```")]
+        const fn $function() {}
+    };
 }
 
-#[allow(dead_code)]
-mod fail {
-    macro_rules! fail {
-        ($function: ident, $block: block) => {
-            #[doc = concat!("```compile_fail\n", stringify!($block), "\n```")]
-            const fn $function() {}
-        };
-    }
+pub(crate) use fail;
 
+#[allow(dead_code)]
+mod tests {
     fail!(can_not_drop_while_soul_lives, {
         use core::cell::RefCell;
         use phylactery::raw::ritual;

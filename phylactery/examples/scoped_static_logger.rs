@@ -4,7 +4,7 @@
 pub mod scoped_static_logger {
     use core::{cell::RefCell, fmt::Display};
     use phylactery::{
-        cell::{Lich, redeem, ritual},
+        cell::{Lich, Soul},
         shroud::shroud,
     };
 
@@ -46,38 +46,38 @@ pub mod scoped_static_logger {
     // This thread local storage allows preserving this thread's call stack while
     // being able to log from anywhere without the need to pass a logger around.
     //
-    // Note that the `Lich<dyn Log>` implements `Default` and has the `'static`
-    // lifetime.
+    // Note that the `Lich<dyn Log>` can have the `'static` lifetime.
     thread_local! {
-        static LOGGER: RefCell<Lich<dyn Log>> = RefCell::default();
+        static LOGGER: RefCell<Option<Lich<dyn Log>>> = RefCell::default();
     }
 
     pub fn scope<T: Display, F: FnOnce(&T)>(prefix: &str, argument: &T, function: F) {
         let parent = LOGGER.take();
-        {
-            // `Lich::borrow` can fail if the binding between it and its `Soul<'a>`
-            // has been severed.
-            let guard = parent.borrow();
-            // This `Logger` captures some references that live on the stack.
-            let logger = Logger {
-                parent: guard.as_deref(),
-                prefix,
-                format: "({})",
-                arguments: &[argument],
-            };
-            // `ritual` produces a `Lich<dyn Log + 'static>` and `Soul<'a>` pair.
-            let (lich, soul) = ritual::<_, dyn Log + 'static>(&logger);
-            // Push this logger as the current scope.
-            LOGGER.set(lich);
-            function(argument);
-            // Pop the logger.
-            let lich = LOGGER.take();
-            // Although not strictly required in this case (letting the `Lich` and
-            // `Soul<'a>` be dropped would also work), `redeem` is the recommended
-            // pattern to dispose of a `Lich` and `Soul<'a>` pair since it is
-            // going to work with all variants of `Lich`/`Soul`.
-            redeem(lich, soul).ok().expect("must be able to redeem");
-        }
+        // This `Logger` captures some references that live on the stack.
+        let logger = Logger {
+            parent: parent.as_deref(),
+            prefix,
+            format: "({})",
+            arguments: &[argument],
+        };
+        // Providing a memory location for the `Soul`'s reference count relieves the
+        // need to allocate it to the heap.
+        let mut count = 0;
+        let soul = Soul::new_with(&logger, &mut count);
+        let lich = soul.bind::<dyn Log>();
+        // Push this logger as the current scope.
+        LOGGER.set(Some(lich));
+        function(argument);
+        // Pop the logger.
+        let lich = LOGGER.take().expect("`Lich` has been pushed");
+        // Although not strictly required (letting the `Lich` be dropped would also
+        // work), `redeem` is the recommended pattern to dispose of a `Lich`.
+        soul.redeem(lich)
+            .ok()
+            .expect("`Lich` has been bound by this `Soul`");
+        // If a `Lich` bound to this `Soul` still lives at the time of drop,
+        // `<Soul as Drop>::drop` will panic.
+        drop(soul);
         // Put back the old logger.
         LOGGER.set(parent);
     }

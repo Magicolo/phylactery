@@ -47,10 +47,10 @@ impl<P> Soul<P> {
     }
 
     pub fn try_sever(self) -> Result<P, Self> {
-        if self.is_bound() {
-            Err(self)
+        if self.bindings() == 0 {
+            Ok(unsafe { self.consume() })
         } else {
-            Ok(unsafe { self.sever() })
+            Err(self)
         }
     }
 
@@ -59,7 +59,7 @@ impl<P> Soul<P> {
     /// The caller must ensure that this [`Soul<P>`] has not bindings left
     /// (`self.bindings() == 0`) by [`Self::redeem`]ing all [`Lich<T>`] that
     /// have been bound to it.
-    unsafe fn sever(self) -> P {
+    unsafe fn consume(self) -> P {
         debug_assert_eq!(self.bindings(), 0);
         // Even with a call to `is_bound` with a `panic!`, this method is always
         // `unsafe` to call. It is not enough that this thread panics to ensure safety;
@@ -69,18 +69,14 @@ impl<P> Soul<P> {
 }
 
 impl<P: ?Sized> Soul<P> {
-    /// This method will only give out a mutable reference to `P` if no bindings
-    /// to this [`Soul<P>`] remain.
-    pub const fn get_mut(this: &mut Self) -> Option<&mut P> {
-        if this.is_bound() {
-            None
+    /// This method will only give out a mutable reference to `P` if no
+    /// bindings to this [`Soul`] remain.
+    pub const fn get_mut(&mut self) -> Option<&mut P> {
+        if self.bindings() == 0 {
+            Some(&mut self.1)
         } else {
-            Some(&mut this.1)
+            None
         }
-    }
-
-    pub const fn is_bound(&self) -> bool {
-        self.0 > 0
     }
 
     pub const fn bindings(&self) -> usize {
@@ -93,7 +89,7 @@ impl<P: Pointer> Soul<P> {
         let Some(bindings) = self.0.checked_sub(1) else {
             return Err(lich);
         };
-        if ptr::addr_eq(self.1.pointer(), lich.0.as_ptr()) {
+        if ptr::addr_eq(self.1.pointer().as_ptr(), lich.0.as_ptr()) {
             forget(lich);
             self.0 = bindings;
             Ok(bindings == 0)
@@ -132,7 +128,7 @@ impl<P: ?Sized> AsRef<P> for Soul<P> {
 
 impl<P: ?Sized> Drop for Soul<P> {
     fn drop(&mut self) {
-        if self.is_bound() {
+        if self.bindings() > 0 {
             panic();
         }
     }

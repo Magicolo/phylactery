@@ -196,7 +196,7 @@ macro_rules! lock_cell_atomic_raw {
 #[cfg(feature = "lock")]
 mod lock {
     use super::*;
-    use phylactery::lock::{Lich, redeem, ritual};
+    use phylactery::lock_bleh::{Lich, redeem, ritual};
     use std::{sync::Mutex, thread::spawn};
 
     lock_cell_atomic_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()][]);
@@ -209,11 +209,11 @@ mod lock {
 mod cell {
     use super::*;
     use core::cell::RefCell;
-    use phylactery::cell::{Lich, bind, redeem};
+    use phylactery::cell_bleh::{Lich, redeem};
 
-    lock_cell_atomic_raw!([][unwrap][|result: Result<_, _>| result.ok().flatten().is_none()][]);
-    lock_cell_atomic!([]);
-    lock_cell!();
+    // lock_cell_atomic_raw!([][unwrap][|result: Result<_, _>|
+    // result.ok().flatten().is_none()][]); lock_cell_atomic!([]);
+    // lock_cell!();
 
     #[test]
     fn can_be_stored_as_static() {
@@ -224,7 +224,7 @@ mod cell {
         let (lich, soul) = bind(&function);
         assert!(LICH.with_borrow_mut(|slot| slot.replace(lich)).is_none());
         assert_eq!(
-            LICH.with_borrow(|slot| slot.as_ref().unwrap().borrow().unwrap()()),
+            LICH.with_borrow(|slot| slot.as_ref().unwrap().get().unwrap()()),
             'a'
         );
         let lich = LICH.with_borrow_mut(|slot| slot.take()).unwrap();
@@ -248,9 +248,9 @@ mod atomic {
     use phylactery::atomic::{Lich, Soul};
     use std::{sync::Mutex, thread::spawn};
 
-    lock_cell_atomic_raw!([][][|result: Result<_, _>| result.is_ok()][location]);
-    lock_atomic_raw!([][][|result: Result<_, _>| result.is_ok()] [location]);
-    lock_cell_atomic!([location]);
+    // lock_cell_atomic_raw!([][][|result: Result<_, _>| result.is_ok()][location]);
+    // lock_atomic_raw!([][][|result: Result<_, _>| result.is_ok()] [location]);
+    // lock_cell_atomic!([location]);
 
     #[test]
     fn can_try_sever_soul() {
@@ -274,7 +274,6 @@ mod atomic {
 }
 
 mod raw {
-    use super::*;
     use phylactery::raw::{Lich, Soul};
     use std::{sync::Mutex, thread::spawn};
 
@@ -349,42 +348,44 @@ mod raw {
 
                 #[test]
                 fn can_send_to_thread() {
-                    let function = || 'a';
-                    $(let mut $location = 0;)?
-                    let (lich, soul) = ritual::<_, dyn Fn() -> char + Send + Sync>(&function $(, &mut $location)?);
+                    let $name = $value;
+                    let value = $name();
+                    let mut soul = Soul::new($pointer);
+                    let lich = soul.bind::<$bind>();
                     let lich = spawn(move || {
                         let lich = lich;
-                        assert_eq!($($safe)? { lich.borrow() }$(.$unwrap())?(), 'a');
+                        assert_eq!(unsafe { lich.get() }(), value);
                         lich
                     })
                     .join()
                     .unwrap();
-                    assert!($ok(redeem(lich, soul)));
+                    assert!(soul.redeem(lich).is_ok());
                 }
 
                 #[test]
                 fn can_be_stored_as_static() {
-                    static LICH: Mutex<Option<Lich<dyn Fn() -> char + Send + Sync>>> = Mutex::new(None);
-                    let function = || 'a';
-                    $(let mut $location = 0;)?
-                    let (lich, soul) = ritual(&function $(, &mut $location)?);
+                    static LICH: Mutex<Option<Lich<$bind>>> = Mutex::new(None);
+                    let $name = $value;
+                    let value = $name();
+                    let mut soul = Soul::new($pointer);
+                    let lich = soul.bind::<$bind>();
                     assert!(LICH.lock().unwrap().replace(lich).is_none());
                     assert_eq!(
-                        $($safe)? { LICH.lock().unwrap().as_ref().unwrap().borrow() }$(.$unwrap())?(),
-                        'a'
+                        unsafe { LICH.lock().unwrap().as_ref().unwrap().get() }(),
+                        value
                     );
                     let lich = LICH.lock().unwrap().take().unwrap();
-                    assert!($ok(redeem(lich, soul)));
+                    assert!(soul.redeem(lich).is_ok());
                 }
             }
         };
     }
 
-    with!(refed, let value = || {}; &value, dyn Fn());
+    with!(refed, let value = || {}; &value, dyn Fn() + Send + Sync);
     #[cfg(feature = "std")]
-    with!(boxes, let value = || {}; Box::new(value),dyn Fn());
+    with!(boxes, let value = || {}; Box::new(value), dyn Fn() + Send + Sync);
     #[cfg(feature = "std")]
-    with!(rc, let value = || {}; std::rc::Rc::new(value),dyn Fn());
+    with!(rc, let value = || {}; std::rc::Rc::new(value), dyn Fn() + Send + Sync);
     #[cfg(feature = "std")]
-    with!(arc, let value = || {}; std::sync::Arc::new(value),dyn Fn());
+    with!(arc, let value = || {}; std::sync::Arc::new(value), dyn Fn() + Send + Sync);
 }

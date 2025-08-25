@@ -1,172 +1,192 @@
-//! [`Arc<RwLock<T>>`]-based, allocation-using, thread-safe, [`Clone`]able,
-//! lifetime extension using a reference counter.
-//!
-//! This module provides the [`Lock`] [`Binding`] implementation, which uses an
-//! [`Arc<RwLock<T>>`] as a reference counter to track the number of active
-//! [`Lich<T>`] clones/borrows.
-use crate::{Binding, Sever, TrySever, shroud::Shroud};
+use crate::{Pointer, UniquePointer, shroud::Shroud};
+use atomic_wait::{wait, wake_one};
 use core::{
+    borrow::Borrow,
+    mem::{ManuallyDrop, forget},
     ops::Deref,
-    ptr::{self, NonNull},
+    ptr::{NonNull, drop_in_place, read},
+    sync::atomic::{AtomicU32, Ordering},
 };
-use std::sync::{Arc, RwLock, RwLockReadGuard, TryLockError, Weak};
 
-pub struct Lock;
-pub type Soul<'a> = crate::Soul<'a, Lock>;
-pub type Lich<T> = crate::Lich<T, Lock>;
-pub type Pair<'a, T> = crate::Pair<'a, T, Lock>;
-pub struct Data<T: ?Sized>(Arc<RwLock<Option<NonNull<T>>>>);
-pub struct Life<'a>(Weak<RwLock<dyn Slot + 'a>>);
-pub struct Guard<'a, T: ?Sized>(RwLockReadGuard<'a, Option<NonNull<T>>>);
+pub struct Lich<T: ?Sized> {
+    count: NonNull<AtomicU32>,
+    data: NonNull<T>,
+}
 
-trait Slot: Sever + TrySever {}
-impl<S: Sever + TrySever> Slot for S {}
+pub struct Soul<P, C: UniquePointer<Target = u32>> {
+    data: P,
+    count: C,
+}
 
-unsafe impl<'a, T: ?Sized + 'a> Send for Data<T> where Arc<RwLock<Option<&'a T>>>: Send {}
-unsafe impl<'a, T: ?Sized + 'a> Sync for Data<T> where Arc<RwLock<Option<&'a T>>>: Sync {}
+unsafe impl<T: ?Sized> Send for Lich<T> where for<'a> &'a T: Send {}
+unsafe impl<T: ?Sized> Sync for Lich<T> where for<'a> &'a T: Sync {}
 
-impl<T: ?Sized> Default for Data<T> {
-    fn default() -> Self {
-        Self(Default::default())
+#[cfg(feature = "std")]
+impl<P: Pointer> Soul<P, Box<u32>> {
+    pub fn new(data: P) -> Self {
+        Self::new_with(data, Box::new(0))
     }
 }
 
-impl<T: ?Sized> Clone for Data<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
+impl<P: Pointer, C: UniquePointer<Target = u32>> Soul<P, C> {
+    pub const fn new_with(data: P, count: C) -> Self {
+        Self { data, count }
+    }
+
+    pub fn sever(self) -> P {
+        sever::<true>(self.count_ref());
+        self.consume()
+    }
+
+    pub fn try_sever(self) -> Result<P, Self> {
+        match sever::<false>(self.count_ref()) {
+            Some(_) => Ok(self.consume()),
+            None => Err(self),
+        }
+    }
+
+    pub fn bind<T: Shroud<P::Target> + ?Sized>(&self) -> Lich<T> {
+        self.count_ref().fetch_add(1, Ordering::Relaxed);
+        Lich {
+            count: self.count_ptr(),
+            data: T::shroud(self.data.pointer()),
+        }
+    }
+
+    fn consume(self) -> P {
+        let mut soul = ManuallyDrop::new(self);
+        unsafe { drop_in_place(&mut soul.count) };
+        unsafe { read(&soul.data) }
     }
 }
 
-impl<T: ?Sized> Sever for Data<T> {
-    fn sever(&mut self) -> bool {
-        sever(&self.0)
-    }
-}
-
-impl<T: ?Sized> TrySever for Data<T> {
-    fn try_sever(&mut self) -> Option<bool> {
-        // Only sever if there are no other `Self` clones.
-        if Arc::strong_count(&self.0) == 1 {
-            try_sever(&self.0)
+impl<P, C: UniquePointer<Target = u32>> Soul<P, C> {
+    /// This method will only give out a mutable reference to `P` if no
+    /// bindings to this [`Soul`] remain.
+    pub fn get_mut(&mut self) -> Option<&mut P> {
+        if self.bindings() == 0 {
+            Some(&mut self.data)
         } else {
             None
         }
     }
-}
 
-impl Sever for Life<'_> {
-    fn sever(&mut self) -> bool {
-        self.0.upgrade().as_deref().is_some_and(sever)
+    pub fn bindings(&self) -> usize {
+        bindings(self.count_ref()) as _
+    }
+
+    pub fn redeem<T: ?Sized>(&self, lich: Lich<T>) -> Result<usize, Lich<T>> {
+        if self.count_ptr() == lich.count {
+            forget(lich);
+            let bindings = self.count_ref().fetch_sub(1, Ordering::Relaxed);
+            Ok(bindings as _)
+        } else {
+            Err(lich)
+        }
+    }
+
+    fn count_ref(&self) -> &AtomicU32 {
+        unsafe { self.count_ptr().as_ref() }
+    }
+
+    fn count_ptr(&self) -> NonNull<AtomicU32> {
+        self.count.pointer().cast()
     }
 }
 
-impl TrySever for Life<'_> {
-    fn try_sever(&mut self) -> Option<bool> {
-        // If the `Weak::upgrade` fails, consider the sever to be a success with
-        // `Some(false)`.
-        self.0.upgrade().as_deref().map_or(Some(false), try_sever)
+impl<P, C: UniquePointer<Target = u32>> Deref for Soul<P, C> {
+    type Target = P;
+
+    fn deref(&self) -> &Self::Target {
+        &self.data
     }
 }
 
-impl Binding for Lock {
-    type Data<T: ?Sized> = Data<T>;
-    type Life<'a> = Life<'a>;
-
-    fn are_bound<'a, T: ?Sized>(data: &Self::Data<T>, life: &Self::Life<'a>) -> bool {
-        ptr::addr_eq(Arc::as_ptr(&data.0), Weak::as_ptr(&life.0))
+impl<P, C: UniquePointer<Target = u32>> AsRef<P> for Soul<P, C> {
+    fn as_ref(&self) -> &P {
+        &self.data
     }
+}
 
-    fn is_life_bound(life: &Self::Life<'_>) -> bool {
-        Weak::strong_count(&life.0) > 0
+impl<P, C: UniquePointer<Target = u32>> Borrow<P> for Soul<P, C> {
+    fn borrow(&self) -> &P {
+        &self.data
     }
+}
 
-    fn is_data_bound<T: ?Sized>(data: &Self::Data<T>) -> bool {
-        Arc::weak_count(&data.0) > 0
+impl<P, C: UniquePointer<Target = u32>> Drop for Soul<P, C> {
+    fn drop(&mut self) {
+        sever::<true>(self.count_ref());
     }
 }
 
 impl<T: ?Sized> Lich<T> {
-    /// Borrows the wrapped data, returning a [`Guard<T>`] if successful.
-    ///
-    /// This method will return a [`Some<Guard<T>>`] if the data is available
-    /// and not already exclusively locked. The returned [`Guard`] provides
-    /// immutable, thread-safe access to the data.
-    ///
-    /// It will return [`None`] if:
-    /// - The link to the [`Soul<'a>`] has been severed (e.g., [`Soul::sever`]
-    ///   was called or the [`Soul<'a>`] was dropped).
-    /// - The underlying [`RwLock`] is already exclusively locked for writing
-    ///   (which can happen during [`Sever::sever`] or [`redeem`]).
-    pub fn borrow(&self) -> Option<Guard<'_, T>> {
-        // `try_read` can be used here because only the `sever` operation takes a
-        // `write` lock, at which point, the value must not be observable
-        let guard = self.0.0.try_read().ok()?;
-        if guard.is_some() {
-            Some(Guard(guard))
-        } else {
-            None
+    pub fn bindings(&self) -> usize {
+        bindings(self.count_ref()) as _
+    }
+
+    fn count_ref(&self) -> &AtomicU32 {
+        unsafe { self.count.as_ref() }
+    }
+
+    fn data_ref(&self) -> &T {
+        unsafe { self.data.as_ref() }
+    }
+}
+
+impl<T: ?Sized> Clone for Lich<T> {
+    fn clone(&self) -> Self {
+        self.count_ref().fetch_add(1, Ordering::Relaxed);
+        Self {
+            data: self.data,
+            count: self.count,
         }
     }
 }
 
-impl<T: ?Sized> Deref for Guard<'_, T> {
+impl<T: ?Sized> Drop for Lich<T> {
+    fn drop(&mut self) {
+        match self.count_ref().fetch_sub(1, Ordering::Release) {
+            0 | u32::MAX => unreachable!(),
+            // The soul might be waiting for this last lich to be dropped. Wake it up.
+            1 => wake_one(self.count.as_ptr()),
+            _ => {}
+        }
+    }
+}
+
+impl<T: ?Sized> Borrow<T> for Lich<T> {
+    fn borrow(&self) -> &T {
+        self.data_ref()
+    }
+}
+
+impl<T: ?Sized> Deref for Lich<T> {
     type Target = T;
 
-    fn deref(&self) -> &T {
-        // # Safety
-        // The `Option<NonNull<T>>` can only be `Some` as per the check in
-        // `Lich<T>::borrow` and could not have been swapped for `None` since it
-        // is protected by its corresponding `RwLockReadGuard` guard.
-        unsafe { self.0.as_ref().unwrap_unchecked().as_ref() }
+    fn deref(&self) -> &Self::Target {
+        self.data_ref()
     }
 }
 
-impl<T: ?Sized> AsRef<T> for Guard<'_, T> {
+impl<T: ?Sized> AsRef<T> for Lich<T> {
     fn as_ref(&self) -> &T {
-        self.deref()
+        self.data_ref()
     }
 }
 
-/// Creates a `lock` [`Lich<T, Lock>`] and [`Soul<'a, Lock>`] pair from a
-/// reference.
-///
-/// This function allocates an [`Arc<RwLock<T>>`] on the heap to manage the
-/// reference and its borrow state in a thread-safe way.
-pub fn ritual<'a, T: ?Sized + 'a, S: Shroud<T> + ?Sized + 'a>(value: &'a T) -> Pair<'a, S> {
-    let data = Arc::new(RwLock::new(Some(S::shroud(value))));
-    let life = Arc::downgrade(&data);
-    (crate::Lich(Data(data)), crate::Soul(Life(life)))
-}
-
-/// Safely disposes of a [`Lich<T>`] and [`Soul<'a>`] pair.
-///
-/// If the provided [`Lich<T>`] and [`Soul<'a>`] are bound together, they are
-/// consumed and [`Ok`] is returned with the [`Soul<'a>`] if there are other
-/// live [`Lich<T>`] clones. If they are not bound together, [`Err`] is
-/// returned with the pair.
-///
-/// If the [`Lich<T>`] and [`Soul<'a>`] are simply dropped, the [`Soul<'a>`]'s
-/// [`Drop`] implementation will block until all remaining [`Lich<T>::borrow`]
-/// [`Guard`]s are dropped, ensuring safety. While not strictly necessary, using
-/// [`redeem`] is good practice for explicit cleanup.
-pub fn redeem<'a, T: ?Sized + 'a>(
-    lich: Lich<T>,
-    soul: Soul<'a>,
-) -> Result<Option<Soul<'a>>, Pair<'a, T>> {
-    crate::redeem::<_, _, true>(lich, soul)
-}
-
-fn sever<T: Sever + ?Sized>(lock: &RwLock<T>) -> bool {
-    match lock.write() {
-        Ok(mut guard) => guard.sever(),
-        Err(mut error) => error.get_mut().sever(),
+fn sever<const WAIT: bool>(count: &AtomicU32) -> Option<bool> {
+    loop {
+        match count.compare_exchange(0, u32::MAX, Ordering::Acquire, Ordering::Relaxed) {
+            Ok(0) => break Some(true),
+            Ok(u32::MAX) | Err(u32::MAX) => break Some(false),
+            Ok(value) | Err(value) if WAIT => wait(count, value),
+            Ok(_) | Err(_) => break None,
+        }
     }
 }
 
-fn try_sever<T: TrySever + ?Sized>(lock: &RwLock<T>) -> Option<bool> {
-    match lock.try_write() {
-        Ok(mut guard) => guard.try_sever(),
-        Err(TryLockError::Poisoned(mut error)) => error.get_mut().try_sever(),
-        Err(TryLockError::WouldBlock) => None,
-    }
+fn bindings(count: &AtomicU32) -> u32 {
+    let count = count.load(Ordering::Relaxed);
+    if count == u32::MAX { 0 } else { count }
 }

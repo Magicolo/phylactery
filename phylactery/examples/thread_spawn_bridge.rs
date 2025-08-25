@@ -1,41 +1,34 @@
 /// Trivially reimplement [`thread::scope`] in a more powerful way.
 ///
 /// Contrary to other `scope` solutions, here, the captured reference can be
-/// returned (as a [`Soul<'a>`]) while the threads continue to execute.
+/// returned (as a [`Soul<P>`]) while the threads continue to execute.
 #[cfg(feature = "lock")]
 pub mod thread_spawn_bridge {
     use core::num::NonZeroUsize;
-    use phylactery::lock::{Soul, ritual};
+    use phylactery::lock::Soul;
     use std::thread;
 
     pub fn broadcast<F: Fn(usize) + Send + Sync>(
         parallelism: NonZeroUsize,
         function: &F,
-    ) -> Soul<'_> {
-        let (lich, soul) = ritual::<_, dyn Fn(usize) + Send + Sync>(function);
+    ) -> Soul<&F, Box<u32>> {
+        let soul = Soul::new(function);
         // Spawn a bunch of threads that will all call `F`.
         for index in 0..parallelism.get() {
-            let lich = lich.clone();
+            let lich = soul.bind::<dyn Fn(usize) + Send + Sync>();
             // The non-static function `F` crosses a `'static` boundary protected by the
             // `Lich`.
             thread::spawn(move || {
-                // Borrowing may fail if the `Soul<'a>` has been dropped/severed.
-                if let Some(guard) = lich.borrow() {
-                    // Call the non-static function.
-                    guard(index);
-                }
-                // Allow the `Guard` and `Lich` to drop such that the `Soul<'a>`
-                // can complete its `Soul::sever`.
+                // Call the non-static function.
+                lich(index);
             });
         }
 
-        // The `Soul<'a>` continues to track the captured `'a` reference and will
+        // The `Soul` continues to track the captured `&F` reference and will
         // guarantee that it becomes inaccessible when it itself drops.
         //
-        // Note that this may block this thread if there still are active borrows at the
-        // time of drop.
-        //
-        // Note that the `Lich`es do not need be `redeem`ed.
+        // If a `Lich` bound to this `Soul` still lives at the time of drop,
+        // `<Soul as Drop>::drop` will block until all `Lich`es are dropped.
         soul
     }
 }
