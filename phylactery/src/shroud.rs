@@ -131,6 +131,7 @@ mod implement {
             shroud_fn!(@IMPLEMENT { function: $function, parameters: $parameters, return: $return, traits: $trait });
         };
         (@IMPLEMENT { function: $function: ident, parameters: ($($parameter: ident),*), return: $return: ident, traits: ($($trait: path),*) $(,)? }) => {
+            #[automatically_derived]
             impl<$($parameter,)* $return> $crate::shroud::Shroud<dyn $function($($parameter),*) -> $return $(+ $trait)*> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
                 #[inline(always)]
                 fn shroud(from: ::core::ptr::NonNull<dyn $function($($parameter),*) -> $return $(+ $trait)*>) -> ::core::ptr::NonNull<Self> {
@@ -138,6 +139,7 @@ mod implement {
                 }
             }
 
+            #[automatically_derived]
             impl<$($parameter,)* $return, TConcrete: $function($($parameter),*) -> $return $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
                 #[inline(always)]
                 fn shroud(from: ::core::ptr::NonNull<TConcrete>) -> ::core::ptr::NonNull<Self> {

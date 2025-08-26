@@ -1,13 +1,20 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "cell")]
-pub mod cell;
-#[cfg(feature = "lock")]
-pub mod lock;
+mod lich;
 pub mod shroud;
+mod soul;
 
+use crate::shroud::Shroud;
 use core::ptr::NonNull;
+
+pub unsafe trait Bind: Shroud<u32> {
+    fn sever<const FORCE: bool>(&self) -> bool;
+    fn redeem(&self);
+    fn bindings(&self) -> u32;
+    fn increment(&self) -> u32;
+    fn decrement(&self) -> u32;
+}
 
 /// # Safety
 ///
@@ -105,6 +112,110 @@ const _: () = {
         }
     }
 };
+
+#[cfg(feature = "cell")]
+pub mod cell {
+    use super::*;
+
+    #[repr(transparent)]
+    pub struct Cell(core::cell::Cell<u32>);
+    pub type Lich<T> = lich::Lich<T, Cell>;
+    pub type Soul<'a, P> = soul::Soul<'a, P, Cell>;
+
+    impl Shroud<u32> for Cell {
+        fn shroud(from: NonNull<u32>) -> NonNull<Self> {
+            from.cast()
+        }
+    }
+
+    unsafe impl Bind for Cell {
+        fn sever<const FORCE: bool>(&self) -> bool {
+            match self.0.get() {
+                0 | u32::MAX => {
+                    self.0.set(u32::MAX);
+                    true
+                }
+                value if FORCE => panic!("{value} `Lich<T>`es have not been redeemed"),
+                _ => false,
+            }
+        }
+
+        fn redeem(&self) {}
+
+        fn bindings(&self) -> u32 {
+            let count = self.0.get();
+            if count == u32::MAX { 0 } else { count }
+        }
+
+        fn increment(&self) -> u32 {
+            let value = self.0.get();
+            assert!(value < u32::MAX - 1);
+            self.0.set(value + 1);
+            value
+        }
+
+        fn decrement(&self) -> u32 {
+            let value = self.0.get();
+            debug_assert!(value > 0);
+            self.0.set(value - 1);
+            value
+        }
+    }
+}
+
+#[cfg(feature = "lock")]
+pub mod lock {
+    use super::*;
+    use core::sync::atomic::{AtomicU32, Ordering};
+
+    #[repr(transparent)]
+    pub struct Lock(AtomicU32);
+    pub type Lich<T> = lich::Lich<T, Lock>;
+    pub type Soul<'a, P> = soul::Soul<'a, P, Lock>;
+
+    impl Shroud<u32> for Lock {
+        fn shroud(from: NonNull<u32>) -> NonNull<Self> {
+            from.cast()
+        }
+    }
+
+    #[cfg(feature = "lock")]
+    unsafe impl Bind for Lock {
+        fn sever<const FORCE: bool>(&self) -> bool {
+            loop {
+                match self
+                    .0
+                    .compare_exchange(0, u32::MAX, Ordering::Acquire, Ordering::Relaxed)
+                {
+                    Ok(0 | u32::MAX) | Err(u32::MAX) => break true,
+                    Ok(value) | Err(value) if FORCE => atomic_wait::wait(&self.0, value),
+                    Ok(_) | Err(_) => break false,
+                }
+            }
+        }
+
+        fn redeem(&self) {
+            atomic_wait::wake_one(&self.0);
+        }
+
+        fn bindings(&self) -> u32 {
+            let count = self.0.load(Ordering::Relaxed);
+            if count == u32::MAX { 0 } else { count }
+        }
+
+        fn increment(&self) -> u32 {
+            let value = self.0.fetch_add(1, Ordering::Relaxed);
+            assert!(value < u32::MAX - 1);
+            value
+        }
+
+        fn decrement(&self) -> u32 {
+            let value = self.0.fetch_sub(1, Ordering::Relaxed);
+            debug_assert!(value > 0);
+            value
+        }
+    }
+}
 
 #[allow(dead_code)]
 mod tests {

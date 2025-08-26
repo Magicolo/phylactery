@@ -11,7 +11,7 @@ pub mod thread_spawn_bridge {
     pub fn broadcast<F: Fn(usize) + Send + Sync>(
         parallelism: NonZeroUsize,
         function: &F,
-    ) -> Soul<&F, Box<u32>> {
+    ) -> Soul<'static, &F> {
         let soul = Soul::new(function);
         // Spawn a bunch of threads that will all call `F`.
         for index in 0..parallelism.get() {

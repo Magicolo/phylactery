@@ -63,6 +63,7 @@ pub fn shroud(
         .map(|(span, dynamic, assigns, paths)| {
             if dynamic {
                 quote_spanned!(span =>
+                    #[automatically_derived]
                     impl<'__life_in__, '__life_out__: '__life_in__, #(#parameters,)*> ::phylactery::shroud::Shroud<dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__> for dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_out__ #where_clause {
                         #[inline(always)]
                         fn shroud(from: ::core::ptr::NonNull<dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__>) -> ::core::ptr::NonNull<Self> {
@@ -72,6 +73,7 @@ pub fn shroud(
                 )
             } else {
                 quote_spanned!(span =>
+                    #[automatically_derived]
                     impl<'__life__, #(#parameters,)* __TConcrete__: #ident<#(#parameter_names,)*> #(+ #paths)*> ::phylactery::shroud::Shroud<__TConcrete__> for dyn #ident<#(#parameter_names,)* #(#associates = __TConcrete__::#associates,)*> #(+ #paths)* + '__life__ #where_clause {
                         #[inline(always)]
                         fn shroud(from: ::core::ptr::NonNull<__TConcrete__>) -> ::core::ptr::NonNull<Self> {
