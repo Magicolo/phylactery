@@ -1,146 +1,102 @@
-use crate::{Bind, Pointer, lich::Lich, shroud::Shroud};
+use crate::{Bind, lich::Lich, shroud::Shroud};
 use core::{
     borrow::Borrow,
-    marker::PhantomData,
+    marker::PhantomPinned,
     mem::{ManuallyDrop, forget},
     ops::Deref,
-    ptr::{NonNull, drop_in_place, read},
+    pin::Pin,
+    ptr::{self, NonNull, drop_in_place, read},
 };
 
-pub struct Soul<'a, P, B: Bind + ?Sized> {
-    _marker: PhantomData<B>,
-    data: P,
-    count: Count<'a>,
+pub struct Soul<T: ?Sized, B: Bind> {
+    _marker: PhantomPinned,
+    bind: B,
+    value: T,
 }
 
-pub enum Count<'a> {
-    #[cfg(feature = "std")]
-    Own(Box<u32>),
-    Borrow(&'a mut u32),
-}
-
-impl Count<'_> {
-    fn as_ptr(&self) -> NonNull<u32> {
-        match self {
-            #[cfg(feature = "std")]
-            Count::Own(count) => unsafe { NonNull::new_unchecked(**count as *mut _) },
-            Count::Borrow(count) => unsafe { NonNull::new_unchecked(*count as *const _ as *mut _) },
-        }
-    }
-}
-
-impl<'a> From<&'a mut u32> for Count<'a> {
-    fn from(count: &'a mut u32) -> Self {
-        Count::Borrow(count)
-    }
-}
-
-#[cfg(feature = "std")]
-impl<'a> From<Box<u32>> for Count<'a> {
-    fn from(count: Box<u32>) -> Self {
-        Count::Own(count)
-    }
-}
-
-#[cfg(feature = "std")]
-impl<P: Pointer, B: Bind> Soul<'static, P, B> {
-    pub fn new(data: P) -> Self {
-        Self::new_with(data, Count::Own(Box::new(0)))
-    }
-}
-
-impl<'a, P: Pointer, B: Bind> Soul<'a, P, B> {
-    pub fn new_with<C: Into<Count<'a>>>(data: P, count: C) -> Self {
+impl<T, B: Bind> Soul<T, B> {
+    pub const fn new(value: T) -> Self {
         Self {
-            data,
-            count: count.into(),
-            _marker: PhantomData,
+            value,
+            bind: B::NEW,
+            _marker: PhantomPinned,
         }
     }
 
-    pub fn sever(self) -> P {
-        self.get().sever::<true>();
+    pub fn sever(self) -> T {
+        self.bind.sever::<true>();
         self.consume()
     }
 
-    pub fn try_sever(self) -> Result<P, Self> {
-        if self.get().sever::<false>() {
+    pub fn try_sever(self) -> Result<T, Self> {
+        if self.bind.sever::<false>() {
             Ok(self.consume())
         } else {
             Err(self)
         }
     }
 
-    fn consume(self) -> P {
+    fn consume(self) -> T {
         let mut soul = ManuallyDrop::new(self);
-        unsafe { drop_in_place(&mut soul.count) };
-        unsafe { read(&soul.data) }
+        unsafe { drop_in_place(&mut soul.bind) };
+        unsafe { read(&soul.value) }
     }
 }
 
-impl<P: Pointer, B: Bind + ?Sized> Soul<'_, P, B> {
-    pub fn bind<T: Shroud<P::Target> + ?Sized>(&self) -> Lich<T, B> {
-        self.get().increment();
+impl<T: ?Sized, B: Bind> Soul<T, B> {
+    pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S, B> {
+        self.bind.increment();
         Lich {
-            count: self.count.as_ptr(),
-            data: T::shroud(self.data.pointer()),
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<P, B: Bind + ?Sized> Soul<'_, P, B> {
-    /// This method will only give out a mutable reference to `P` if no
-    /// bindings to this [`Soul`] remain.
-    pub fn get_mut(&mut self) -> Option<&mut P> {
-        if self.bindings() == 0 {
-            Some(&mut self.data)
-        } else {
-            None
+            bind: self.bind_ptr(),
+            value: S::shroud(self.value_ptr()),
         }
     }
 
     pub fn bindings(&self) -> usize {
-        self.get().bindings() as _
+        self.bind.bindings() as _
     }
 
-    pub fn redeem<T: ?Sized>(&self, lich: Lich<T, B>) -> Result<usize, Lich<T, B>> {
-        if self.count.as_ptr() == lich.count {
+    pub fn redeem<S: ?Sized>(&self, lich: Lich<S, B>) -> Result<usize, Lich<S, B>> {
+        if ptr::eq(&self.bind, lich.bind.as_ptr()) {
             forget(lich);
-            let bindings = self.get().decrement();
+            let bindings = self.bind.decrement();
             Ok(bindings as _)
         } else {
             Err(lich)
         }
     }
 
-    fn get(&self) -> &B {
-        unsafe { B::shroud(self.count.as_ptr()).as_ref() }
+    fn value_ptr(self: Pin<&Self>) -> NonNull<T> {
+        unsafe { NonNull::new_unchecked(&self.value as *const _ as _) }
+    }
+
+    fn bind_ptr(self: Pin<&Self>) -> NonNull<B> {
+        unsafe { NonNull::new_unchecked(&self.bind as *const _ as _) }
     }
 }
 
-impl<P, B: Bind + ?Sized> Deref for Soul<'_, P, B> {
-    type Target = P;
+impl<T: ?Sized, B: Bind> Deref for Soul<T, B> {
+    type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.data
+        &self.value
     }
 }
 
-impl<P, B: Bind + ?Sized> AsRef<P> for Soul<'_, P, B> {
-    fn as_ref(&self) -> &P {
-        &self.data
+impl<T: ?Sized, B: Bind> AsRef<T> for Soul<T, B> {
+    fn as_ref(&self) -> &T {
+        &self.value
     }
 }
 
-impl<P, B: Bind + ?Sized> Borrow<P> for Soul<'_, P, B> {
-    fn borrow(&self) -> &P {
-        &self.data
+impl<T: ?Sized, B: Bind> Borrow<T> for Soul<T, B> {
+    fn borrow(&self) -> &T {
+        &self.value
     }
 }
 
-impl<P, B: Bind + ?Sized> Drop for Soul<'_, P, B> {
+impl<T: ?Sized, B: Bind> Drop for Soul<T, B> {
     fn drop(&mut self) {
-        self.get().sever::<true>();
+        self.bind.sever::<true>();
     }
 }

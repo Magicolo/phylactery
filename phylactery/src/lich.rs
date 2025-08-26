@@ -1,10 +1,9 @@
 use crate::Bind;
-use core::{borrow::Borrow, marker::PhantomData, ops::Deref, ptr::NonNull};
+use core::{borrow::Borrow, ops::Deref, ptr::NonNull};
 
 pub struct Lich<T: ?Sized, B: Bind + ?Sized> {
-    pub(crate) _marker: PhantomData<B>,
-    pub(crate) data: NonNull<T>,
-    pub(crate) count: NonNull<u32>,
+    pub(crate) value: NonNull<T>,
+    pub(crate) bind: NonNull<B>,
 }
 
 unsafe impl<T: ?Sized, B: Bind + ?Sized> Send for Lich<T, B>
@@ -25,12 +24,12 @@ impl<T: ?Sized, B: Bind + ?Sized> Lich<T, B> {
         self.bind_ref().bindings() as _
     }
 
-    fn bind_ref(&self) -> &B {
-        unsafe { B::shroud(self.count).as_ref() }
+    const fn bind_ref(&self) -> &B {
+        unsafe { self.bind.as_ref() }
     }
 
-    fn data_ref(&self) -> &T {
-        unsafe { self.data.as_ref() }
+    const fn data_ref(&self) -> &T {
+        unsafe { self.value.as_ref() }
     }
 }
 
@@ -38,18 +37,18 @@ impl<T: ?Sized, B: Bind + ?Sized> Clone for Lich<T, B> {
     fn clone(&self) -> Self {
         self.bind_ref().increment();
         Self {
-            data: self.data,
-            count: self.count,
-            _marker: PhantomData,
+            value: self.value,
+            bind: self.bind,
         }
     }
 }
 
 impl<T: ?Sized, B: Bind + ?Sized> Drop for Lich<T, B> {
     fn drop(&mut self) {
-        match self.bind_ref().decrement() {
+        let bind = self.bind_ref();
+        match bind.decrement() {
             0 | u32::MAX => unreachable!(),
-            1 => self.bind_ref().redeem(),
+            1 => bind.redeem(),
             _ => {}
         }
     }
