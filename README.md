@@ -13,51 +13,34 @@ Safe and thin wrappers around lifetime extension to allow non-static values to c
 
 ---
 ### In Brief
-Given a trait `Trait` and a `T: Trait`, any `&'a T` can be split into a `Lich<dyn Trait + 'static>` and a `Soul<'a>` pair such that the `dyn Trait` can cross `'static` boundaries while tracking the lifetime `'a`.
+This library provides a way to extend the lifetime of a value beyond its original scope, allowing it to be used in `'static` contexts. It does this by splitting a pinned, owned value into two parts: a [`Soul`] and one or more [`Lich`]es.
+
+- The [`Soul<T, B>`] owns the value `T` and controls its lifetime. It must be pinned in memory (e.g., on the stack with `core::pin::pin!` or on the heap with `Box::pin`).
+- The [`Lich<T, B>`] is a handle to the value inside the `Soul`. It can be safely given a `'static` lifetime.
+- The [`Binding`] `B` is a trait that defines the connection between the `Soul` and its `Lich`es, managing reference counting and access control.
+
+When the `Soul` is dropped, it automatically severs the connection to all its `Lich`es, ensuring that the value can no longer be accessed. This makes it impossible to create a dangling reference.
 
 The general usage pattern of this library is:
-- Choose a `Lich`/`Soul` variant for your use-case (see below for the tradeoffs).
-- Implement `Shroud` for the trait for which you want to extend the lifetime (e.g. `#[shroud] trait Trait` will `impl<T: Trait> Shroud<T> for dyn Trait` automatically).
-- Use the corresponding `ritual::<T: Trait, dyn Trait>(value: &'a T)` to produce a `Lich<dyn Trait + 'static>` bound to a `Soul<'a>`.
-- Use the `Lich<dyn Trait>` as a `'static` reference to your otherwise non-`'static` `&'a T`.
-- Use the corresponding `redeem(Lich<T>, Soul<'a>)` to guarantee that all references to `&'a T` are dropped before the end of lifetime `'a`.
-
-When `Soul<'a>` is dropped or when calling `Soul::sever`, it is guaranteed that the captured reference is also dropped, thus inaccessible from a remaining `Lich`.
+- Choose a `Soul` variant for your use-case (see below for the tradeoffs).
+- Create a `Soul` with your data using `Soul::new(my_data)`.
+- Pin the `Soul` to a stable memory location (e.g., `let soul = core::pin::pin!(Soul::new(my_data));`).
+- Create one or more `Lich`es from the pinned `Soul` by calling `soul.as_ref().bind()`. The `Lich` can be shrouded as a `dyn Trait` object if needed.
+- Use the `Lich` as a `'static` handle to your data.
+- When the `Soul` is dropped, all `Lich`es bound to it are automatically and safely invalidated.
 
 Different variants exist with different tradeoffs:
-- `phylactery::raw`:
-    - Zero-cost (wraps a pointer in a new-type).
-    - Does **not** allocate heap memory.
-    - Does require the `Lich` to be `redeem`ed with its `Soul` (otherwise, `Lich` and `Soul` **will** panic on drop).
-    - Does require some `unsafe` calls (e.g. `Lich::borrow`).
-    - `Lich` can **not** be cloned.
-    - Can be sent to other threads.
-    - Can be used with `#[no_std]`.
-- `phylactery::atomic`:
-    - Adds minimal overhead with an `AtomicU32` reference counter.
-    - Does **not** allocate heap memory.
-    - Does require an additional memory location (an `&mut u32`) to create the `Lich`/`Soul` pair.
-    - If a `Lich` still exists when the `Soul` is dropped, the thread will block until the `Lich` is dropped (which can lead to deadlocks).
-    - Does **not** require `unsafe` calls.
-    - `Lich` can be cloned.
-    - Can be sent to other threads.
-    - Can be used with `#[no_std]`.
-- `phylactery::cell`:
-    - Adds an indirection and minimal overhead using `Rc<RefCell>`.
-    - Does allocate heap memory.
-    - Allows for the use of the `Lich::sever` and `Soul::sever` methods.
-    - If a borrow still exists when the `Soul` is dropped, the thread will panic.
-    - Does **not** require the `Lich`es to be `redeem`ed (although it is considered good practice to do so).
-    - Does **not** require `unsafe` calls.
+- [`phylactery::cell`]:
+    - Based on `core::cell::Cell`.
+    - Does **not** allocate heap memory for the binding (but the `Soul` can be heap-allocated with `Box::pin`).
+    - If a `Lich` still exists when the `Soul` is dropped, the thread will panic.
     - `Lich` can be cloned.
     - Can **not** be sent to other threads.
-- `phylactery::lock`:
-    - Adds an indirection and *some* overhead using `Arc<RwLock>`.
-    - Does allocate heap memory.
-    - Allows for the use of the `Lich::sever` and `Soul::sever` methods.
-    - If a borrow still exists when the `Soul` is dropped, the thread will block until the borrow expires (which can lead to deadlocks).
-    - Does **not** require the `Lich` to be `redeem`ed (although it is considered good practice to do so).
-    - Does **not** require `unsafe` calls.
+    - Can be used with `#[no_std]`.
+- [`phylactery::lock`]:
+    - Based on `std::sync::RwLock` (or a spin-lock on `no_std`).
+    - Does **not** allocate heap memory for the binding.
+    - If a `Lich` still exists when the `Soul` is dropped, the thread will block until the `Lich` is dropped (which can lead to deadlocks).
     - `Lich` can be cloned.
     - Can be sent to other threads.
     

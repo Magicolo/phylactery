@@ -1,9 +1,3 @@
-//! The [`Shroud`] trait and the associated [`shroud`] macro are the core of
-//! this library's lifetime extension mechanism. They provide a way to erase
-//! the lifetime of a reference by converting it into a raw pointer or a dynamic
-//! trait, which can then be safely managed by a [`crate::lich::Lich`] and
-//! [`crate::soul::Soul`] pair.
-
 use core::ptr::NonNull;
 /// A convenience macro to implement the [`Shroud<T>`] trait for a given trait.
 /// The macro is applied to a trait directly because it will derive blanket

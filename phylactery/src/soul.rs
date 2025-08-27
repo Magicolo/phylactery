@@ -17,27 +17,29 @@ use core::{
 ///
 /// # Usage
 ///
-/// A `Soul` is created by taking ownership of a value with [`Soul::new()`].
-/// Before creating any [`Lich`]es, the `Soul` must be pinned (see the next
+/// A [`Soul`] is created by taking ownership of a value with [`Soul::new()`].
+/// Before creating any [`Lich`]es, the [`Soul`] must be pinned (see the next
 /// section). Once pinned, [`Lich`]es can be created by calling
-/// [`bind()`](Soul::bind). If no [`Lich`]es have been created, the `Soul` can
-/// be unpinned and the original value retrieved with [`consume()`](Soul::consume).
+/// [`bind()`](Soul::bind). If no [`Lich`]es have been created, the [`Soul`] can
+/// be unpinned and the original value retrieved with
+/// [`consume()`](Soul::consume).
 ///
 /// # Pinning
 ///
-/// A `Soul` must be pinned in memory before any [`Lich`]es can be created.
-/// This is because [`Lich`]es hold a raw pointer to the data inside the `Soul`,
-/// and pinning guarantees that the `Soul`'s memory location will not change,
-/// preventing the pointers from becoming invalid. You can pin a `Soul` to the
-/// stack with `core::pin::pin!` or to the heap with `Box::pin`.
+/// A [`Soul`] must be pinned in memory before any [`Lich`]es can be created.
+/// This is because [`Lich`]es hold a raw pointer to the data inside the
+/// [`Soul`], and pinning guarantees that the [`Soul`]'s memory location will
+/// not change, preventing the pointers from becoming invalid. You can pin a
+/// [`Soul`] to the stack with [`pin!`](core::pin::pin) or to the heap with
+/// [`Box::pin`].
 ///
 /// # Dropping
 ///
-/// The `Drop` implementation of `Soul` is its core safety feature. If a `Soul`
-/// is dropped while any of its [`Lich`]es are still alive, the drop
-/// implementation will either block the current thread until all `Lich`es are
+/// The [`Drop`] implementation of [`Soul`] is its core safety feature. If a
+/// [`Soul`] is dropped while any of its [`Lich`]es are still alive, the drop
+/// implementation will either block the current thread until all [`Lich`]es are
 /// dropped, or it will panic. This behavior depends on the chosen [`Binding`]
-/// and guarantees that no `Lich` can ever outlive the data it points to.
+/// and guarantees that no [`Lich`] can ever outlive the data it points to.
 #[derive(Debug)]
 pub struct Soul<T: ?Sized, B: Binding> {
     _marker: PhantomPinned,
@@ -56,7 +58,7 @@ impl<T, B: Binding> Soul<T, B> {
 
     /// Severs the binding between this [`Soul`] and all of its [`Lich`]es.
     ///
-    /// The `Soul` is returned with its pinning guarantees removed.
+    /// The [`Soul`] is returned with its pinning guarantees removed.
     #[cfg(feature = "std")]
     pub fn sever(self: Pin<Box<Self>>) -> Box<Self> {
         self.bind.sever::<true>();
@@ -67,7 +69,7 @@ impl<T, B: Binding> Soul<T, B> {
     /// Attempts to sever the binding between this [`Soul`] and all of its
     /// [`Lich`]es.
     ///
-    /// If successful, the `Soul` is returned with its pinning guarantees
+    /// If successful, the [`Soul`] is returned with its pinning guarantees
     /// removed.
     #[cfg(feature = "std")]
     pub fn try_sever(self: Pin<Box<Self>>) -> Result<Box<Self>, Pin<Box<Self>>> {
@@ -79,9 +81,9 @@ impl<T, B: Binding> Soul<T, B> {
         }
     }
 
-    /// Consumes the `Soul` and returns the value it owned.
+    /// Consumes the [`Soul`] and returns the value it owned.
     ///
-    /// Note that a `Soul` can only be consumed if it is not pinned, which in
+    /// Note that a [`Soul`] can only be consumed if it is not pinned, which in
     /// turn guarantees that no [`Lich`]es are bound to it.
     pub fn consume(self) -> T {
         // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
@@ -106,8 +108,8 @@ impl<T, B: Binding> Soul<T, B> {
 impl<T: ?Sized, B: Binding> Soul<T, B> {
     /// Creates a new [`Lich`] bound to this [`Soul`].
     ///
-    /// This method can only be called on a pinned `Soul`, which guarantees that
-    /// the `Soul`'s memory location is stable.
+    /// This method can only be called on a pinned [`Soul`], which guarantees
+    /// that the [`Soul`]'s memory location is stable.
     pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S, B> {
         self.bind.increment();
         Lich {
@@ -124,7 +126,8 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
 
     /// Redeems a [`Lich`] that was bound to this [`Soul`].
     ///
-    /// If the `Lich` was not bound to this `Soul`, it is returned as an `Err`.
+    /// If the [`Lich`] was not bound to this [`Soul`], it is returned as an
+    /// [`Err`].
     pub fn redeem<S: ?Sized>(&self, lich: Lich<S, B>) -> Result<usize, Lich<S, B>> {
         if ptr::eq(&self.bind, lich.bind.as_ptr()) {
             forget(lich);

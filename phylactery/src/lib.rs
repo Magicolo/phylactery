@@ -9,7 +9,7 @@ pub mod lock;
 pub mod shroud;
 pub mod soul;
 
-/// Represents a kind of `Binding` for a [`Soul`](soul::Soul) and a
+/// Represents a kind of [`Binding`] for a [`Soul`](soul::Soul) and a
 /// [`Lich`](lich::Lich).
 ///
 /// # Safety
@@ -17,7 +17,8 @@ pub mod soul;
 /// which ensures that captured lifetimes can not be accessed anymore. A wrong
 /// implementation can lead to undefined behavior.
 ///
-/// See [`cell::Cell`] and [`lock::Lock`] as implementation examples.
+/// See [`Cell`](cell::Cell) and [`Lock`](lock::Lock) as implementation
+/// examples.
 pub unsafe trait Binding {
     const NEW: Self;
     /// Attempts to sever the binding between the [`Soul`](soul::Soul) and all

@@ -2,9 +2,11 @@
 //!
 //! This variant can not be sent to other threads. See the
 //! [crate-level documentation](crate) for more details.
+
 use crate::{Binding, lich, panic, soul};
 
-/// A [`Binding`] that uses a `core::cell::Cell<u32>` as a reference counter.
+/// A [`Binding`] that uses a [`Cell<u32>`](core::cell::Cell<u32>) as a
+/// reference counter.
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct Cell(core::cell::Cell<u32>);
