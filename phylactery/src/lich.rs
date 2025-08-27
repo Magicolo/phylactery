@@ -1,6 +1,30 @@
 use crate::{Binding, is_panicking};
 use core::{borrow::Borrow, ops::Deref, ptr::NonNull};
 
+/// A `'static` pointer to a value owned by a [`Soul`](crate::soul::Soul).
+///
+/// A [`Lich`] acts like a `&'static T`, but its validity is dynamically tied to
+/// the lifetime of its parent [`Soul`](crate::soul::Soul) rather than being
+/// statically determined by the Rust compiler. This allows for safely
+/// referencing stack-local or other non-`'static` data in contexts that require
+/// a `'static` lifetime, such as newly spawned threads.
+///
+/// # Usage
+///
+/// A [`Lich`] is created by calling [`Soul::bind()`](crate::soul::Soul::bind)
+/// on a pinned [`Soul`](crate::soul::Soul). It can be cloned freely and,
+/// depending on the [`Binding`] used, may be sent across threads. It
+/// dereferences to the value owned by the `Soul`.
+///
+/// # Safety
+///
+/// The core safety mechanism of this type is enforced by the
+/// [`Soul`](crate::soul::Soul)'s `Drop` implementation. If you attempt to drop
+/// a [`Soul`](crate::soul::Soul) while one or more of its [`Lich`]es are still
+/// in existence, the `Soul`'s drop will either block the current thread until
+/// all [`Lich`]es are dropped, or it will panic. This behavior depends on the
+/// chosen [`Binding`] and guarantees that a [`Lich`] can never become a
+/// dangling pointer to the [`Soul`](crate::soul::Soul)'s data.
 pub struct Lich<T: ?Sized, B: Binding + ?Sized> {
     pub(crate) value: NonNull<T>,
     pub(crate) bind: NonNull<B>,
@@ -20,6 +44,7 @@ where
 }
 
 impl<T: ?Sized, B: Binding + ?Sized> Lich<T, B> {
+    /// Returns the number of `Lich`es that are currently bound to the [`Soul`].
     pub fn bindings(&self) -> usize {
         self.bind_ref().count() as _
     }

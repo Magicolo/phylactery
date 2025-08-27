@@ -8,6 +8,38 @@ use core::{
     ptr::{self, NonNull, drop_in_place, read},
 };
 
+/// The owner of a value whose lifetime is dynamically extended.
+///
+/// A `Soul` is the anchor for a set of [`Lich`] pointers. It takes ownership of
+/// a value and ensures that the value lives long enough for all associated
+/// [`Lich`]es to access it, even in `'static` contexts. It acts as the root
+/// of the lifetime extension mechanism.
+///
+/// # Usage
+///
+/// A [`Soul`] is created by taking ownership of a value with [`Soul::new()`].
+/// Before creating any [`Lich`]es, the [`Soul`] must be pinned (see the next
+/// section). Once pinned, [`Lich`]es can be created by calling
+/// [`bind()`](Soul::bind). If no [`Lich`]es have been created, the [`Soul`] can
+/// be unpinned and the original value retrieved with
+/// [`consume()`](Soul::consume).
+///
+/// # Pinning
+///
+/// A [`Soul`] must be pinned in memory before any [`Lich`]es can be created.
+/// This is because [`Lich`]es hold a raw pointer to the data inside the
+/// [`Soul`], and pinning guarantees that the [`Soul`]'s memory location will
+/// not change, preventing the pointers from becoming invalid. You can pin a
+/// [`Soul`] to the stack with [`pin!`](core::pin::pin) or to the heap with
+/// [`Box::pin`].
+///
+/// # Dropping
+///
+/// The [`Drop`] implementation of [`Soul`] is its core safety feature. If a
+/// [`Soul`] is dropped while any of its [`Lich`]es are still alive, the drop
+/// implementation will either block the current thread until all [`Lich`]es are
+/// dropped, or it will panic. This behavior depends on the chosen [`Binding`]
+/// and guarantees that no [`Lich`] can ever outlive the data it points to.
 #[derive(Debug)]
 pub struct Soul<T: ?Sized, B: Binding> {
     _marker: PhantomPinned,
@@ -62,6 +94,10 @@ impl<T, B: Binding> Soul<T, B> {
 }
 
 impl<T: ?Sized, B: Binding> Soul<T, B> {
+    /// Creates a new [`Lich`] bound to this [`Soul`].
+    ///
+    /// This method can only be called on a pinned [`Soul`], which guarantees
+    /// that the [`Soul`]'s memory location is stable.
     pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S, B> {
         self.bind.increment();
         Lich {
@@ -70,10 +106,16 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
         }
     }
 
+    /// Returns the number of [`Lich`]es that are currently bound to this
+    /// [`Soul`].
     pub fn bindings(&self) -> usize {
         self.bind.count() as _
     }
 
+    /// Redeems a [`Lich`] that was bound to this [`Soul`].
+    ///
+    /// If the [`Lich`] was not bound to this [`Soul`], it is returned as an
+    /// [`Err`].
     pub fn redeem<S: ?Sized>(&self, lich: Lich<S, B>) -> Result<usize, Lich<S, B>> {
         if ptr::eq(&self.bind, lich.bind.as_ptr()) {
             forget(lich);

@@ -9,36 +9,38 @@ pub mod lock;
 pub mod shroud;
 pub mod soul;
 
-/// Represents a kind of [`Binding`] for a [`soul::Soul`] and a [`lich::Lich`].
+/// Represents a kind of [`Binding`] for a [`Soul`](soul::Soul) and a
+/// [`Lich`](lich::Lich).
 ///
 /// # Safety
 /// The implementors must implement a reference counter and the `sever` behavior
 /// which ensures that captured lifetimes can not be accessed anymore. A wrong
 /// implementation can lead to undefined behavior.
 ///
-/// See [`cell::Cell`] and [`lock::Lock`] as implementation examples.
+/// See [`Cell`](cell::Cell) and [`Lock`](lock::Lock) as implementation
+/// examples.
 pub unsafe trait Binding {
     const NEW: Self;
-    /// Attempts to sever the binding between the [`soul::Soul`] and all of its
-    /// [`lich::Lich`]es. Called when the [`soul::Soul`] is
-    /// [`soul::Soul::sever`]ed or when it is dropped.
+    /// Attempts to sever the binding between the [`Soul`](soul::Soul) and all
+    /// of its [`Lich`](lich::Lich)es. Called when the [`Soul`](soul::Soul)
+    /// is [`sever`](soul::Soul::sever)ed or when it is dropped.
     /// - When `FORCE = true`, the severance **must** have completed when this
-    ///   call returns and no bound [`lich::Lich`] must be accessible.
+    ///   call returns and no bound [`Lich`](lich::Lich) must be accessible.
     /// - When `FORCE = false`, the severance is allowed to fail.
     ///
     /// Returns `true` if the severance was successful.
     fn sever<const FORCE: bool>(&self) -> bool;
-    /// Called when the last [`lich::Lich`] is dropped.
+    /// Called when the last [`Lich`](lich::Lich) is dropped.
     fn redeem(&self);
     /// Returns the current reference count.
     fn count(&self) -> u32;
-    /// Increments the reference count by 1. Called when a [`lich::Lich`] is
-    /// [`soul::Soul::bind`]ed or when it is cloned.
+    /// Increments the reference count by 1. Called when a [`Lich`](lich::Lich)
+    /// is [`bind`](soul::Soul::bind)ed or when it is cloned.
     ///
     /// Returns the old reference count (pre-increment).
     fn increment(&self) -> u32;
-    /// Decrements the reference count by 1. Called when a [`lich::Lich`] is
-    /// [`soul::Soul::redeem`]ed or when it is dropped.
+    /// Decrements the reference count by 1. Called when a [`Lich`](lich::Lich)
+    /// is [`redeem`](soul::Soul::redeem)ed or when it is dropped.
     ///
     /// Returns the old reference count (pre-decrement).
     fn decrement(&self) -> u32;
