@@ -24,14 +24,23 @@ impl<T, B: Binding> Soul<T, B> {
         }
     }
 
-    #[cfg(feature = "std")]
+    pub fn consume(self) -> T {
+        // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
+        // this unpinned `Soul`.
+        let mut soul = ManuallyDrop::new(self);
+        unsafe { drop_in_place(&mut soul.bind) };
+        unsafe { read(&soul.value) }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<T, B: Binding> Soul<T, B> {
     pub fn sever(self: Pin<Box<Self>>) -> Box<Self> {
         self.bind.sever::<true>();
         // Safety: all bindings have been severed, guaranteed by `B::sever`.
         unsafe { self.unpin() }
     }
 
-    #[cfg(feature = "std")]
     pub fn try_sever(self: Pin<Box<Self>>) -> Result<Box<Self>, Pin<Box<Self>>> {
         if self.bind.sever::<false>() {
             // Safety: all bindings have been severed, guaranteed by `B::sever`.
@@ -41,19 +50,10 @@ impl<T, B: Binding> Soul<T, B> {
         }
     }
 
-    pub fn consume(self) -> T {
-        // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
-        // this unpinned `Soul`.
-        let mut soul = ManuallyDrop::new(self);
-        unsafe { drop_in_place(&mut soul.bind) };
-        unsafe { read(&soul.value) }
-    }
-
     /// # Safety
     ///
     /// It **must** be the case the all bindings to [`Lich`]es have been severed
     /// before calling this function.
-    #[cfg(feature = "std")]
     unsafe fn unpin(self: Pin<Box<Self>>) -> Box<Self> {
         debug_assert_eq!(self.bindings(), 0);
         // Safety: no `Lich`es are bound, the `Soul` can be unpinned.
