@@ -1,5 +1,6 @@
 #![cfg(all(feature = "shroud", feature = "std"))]
 
+#[cfg(any(feature = "cell", feature = "lock"))]
 macro_rules! tests {
     () => {
         #[test]
@@ -86,12 +87,20 @@ macro_rules! tests {
             assert_eq!(lich1(), 'a');
             assert_eq!(lich2(), 'a');
         }
+
+        #[test]
+        fn can_pin_on_stack() {
+            let soul = pin!(Soul::new(|| 'a'));
+            assert_eq!(soul(), 'a');
+            let lich = soul.as_ref().bind::<dyn Fn() -> char>();
+            assert_eq!(lich(), 'a');
+        }
     };
 }
 
 #[cfg(feature = "cell")]
 mod cell {
-    use core::cell::RefCell;
+    use core::{cell::RefCell, pin::pin};
     use phylactery::cell::{Lich, Soul};
 
     tests!();
@@ -119,6 +128,7 @@ mod cell {
 
 #[cfg(feature = "lock")]
 mod lock {
+    use core::pin::pin;
     use phylactery::lock::{Lich, Soul};
     use std::{sync::Mutex, thread::spawn};
 

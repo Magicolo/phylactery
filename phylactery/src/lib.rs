@@ -3,11 +3,11 @@
 
 #[cfg(feature = "cell")]
 pub mod cell;
-mod lich;
+pub mod lich;
 #[cfg(feature = "lock")]
 pub mod lock;
 pub mod shroud;
-mod soul;
+pub mod soul;
 
 /// Represents a kind of [`Binding`] for a [`soul::Soul`] and a [`lich::Lich`].
 ///
@@ -55,6 +55,7 @@ fn is_panicking() -> bool {
     PANIC.load(core::sync::atomic::Ordering::Relaxed)
 }
 
+#[cfg(feature = "cell")]
 fn panic(value: u32) -> bool {
     #[cfg(feature = "std")]
     if std::thread::panicking() {
@@ -82,7 +83,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "cell", feature = "std"))]
     fn is_panicking_is_true() {
         std::panic::catch_unwind(|| panic(0)).unwrap_err();
         assert!(is_panicking());
