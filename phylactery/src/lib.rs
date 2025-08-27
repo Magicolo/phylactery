@@ -19,10 +19,28 @@ mod soul;
 /// See [`cell::Cell`] and [`lock::Lock`] as implementation examples.
 pub unsafe trait Binding {
     const NEW: Self;
+    /// Attempts to sever the binding between the [`soul::Soul`] and all of its
+    /// [`lich::Lich`]es. Called when the [`soul::Soul`] is
+    /// [`soul::Soul::sever`]ed or when it is dropped.
+    /// - When `FORCE = true`, the severance **must** have completed when this
+    ///   call returns and no bound [`lich::Lich`] must be accessible.
+    /// - When `FORCE = false`, the severance is allowed to fail.
+    ///
+    /// Returns `true` if the severance was successful.
     fn sever<const FORCE: bool>(&self) -> bool;
+    /// Called when the last [`lich::Lich`] is dropped.
     fn redeem(&self);
+    /// Returns the current reference count.
     fn count(&self) -> u32;
+    /// Increments the reference count by 1. Called when a [`lich::Lich`] is
+    /// [`soul::Soul::bind`]ed or when it is cloned.
+    ///
+    /// Returns the old reference count (pre-increment).
     fn increment(&self) -> u32;
+    /// Decrements the reference count by 1. Called when a [`lich::Lich`] is
+    /// [`soul::Soul::redeem`]ed or when it is dropped.
+    ///
+    /// Returns the old reference count (pre-decrement).
     fn decrement(&self) -> u32;
 }
 

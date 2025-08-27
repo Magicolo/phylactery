@@ -23,28 +23,40 @@ impl<T, B: Binding> Soul<T, B> {
         }
     }
 
-    pub fn pin(self) -> Pin<Box<Self>> {
-        Box::pin(self)
-    }
-
-    pub fn sever(self: Pin<Box<Self>>) -> T {
+    #[cfg(feature = "std")]
+    pub fn sever(self: Pin<Box<Self>>) -> Box<Self> {
         self.bind.sever::<true>();
-        self.consume()
+        // Safety: all bindings have been severed, guaranteed by `B::sever`.
+        unsafe { self.unpin() }
     }
 
-    pub fn try_sever(self: Pin<Box<Self>>) -> Result<T, Pin<Box<Self>>> {
+    #[cfg(feature = "std")]
+    pub fn try_sever(self: Pin<Box<Self>>) -> Result<Box<Self>, Pin<Box<Self>>> {
         if self.bind.sever::<false>() {
-            Ok(self.consume())
+            // Safety: all bindings have been severed, guaranteed by `B::sever`.
+            Ok(unsafe { self.unpin() })
         } else {
             Err(self)
         }
     }
 
-    fn consume(self: Pin<Box<Self>>) -> T {
-        let soul = *unsafe { Pin::into_inner_unchecked(self) };
-        let mut soul = ManuallyDrop::new(soul);
+    pub fn consume(self) -> T {
+        // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
+        // this unpinned `Soul`.
+        let mut soul = ManuallyDrop::new(self);
         unsafe { drop_in_place(&mut soul.bind) };
         unsafe { read(&soul.value) }
+    }
+
+    /// # Safety
+    ///
+    /// It **must** be the case the all bindings to [`Lich`]es have been severed
+    /// before calling this function.
+    #[cfg(feature = "std")]
+    unsafe fn unpin(self: Pin<Box<Self>>) -> Box<Self> {
+        debug_assert_eq!(self.bindings(), 0);
+        // Safety: no `Lich`es are bound, the `Soul` can be unpinned.
+        unsafe { Pin::into_inner_unchecked(self) }
     }
 }
 
@@ -70,11 +82,17 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
         }
     }
 
-    fn value_ptr(&self) -> NonNull<T> {
+    fn value_ptr(self: Pin<&Self>) -> NonNull<T> {
+        // Safety: because `Soul` is pinned, it is safe to take pointers to it given
+        // that those pointers are no longer accessible if the `Soul` is dropped which
+        // is guaranteed by `B: Binding`
         unsafe { NonNull::new_unchecked(&self.value as *const _ as _) }
     }
 
-    fn bind_ptr(&self) -> NonNull<B> {
+    fn bind_ptr(self: Pin<&Self>) -> NonNull<B> {
+        // Safety: because `Soul` is pinned, it is safe to take pointers to it given
+        // that those pointers are no longer accessible if the `Soul` is dropped which
+        // is guaranteed by `B: Binding`
         unsafe { NonNull::new_unchecked(&self.bind as *const _ as _) }
     }
 }

@@ -25,10 +25,14 @@ impl<T: ?Sized, B: Binding + ?Sized> Lich<T, B> {
     }
 
     const fn bind_ref(&self) -> &B {
+        // Safety: the pointers are valid for the lifetime of `self`; guaranteed by the
+        // `B: Binding`'s reference count.
         unsafe { self.bind.as_ref() }
     }
 
     const fn data_ref(&self) -> &T {
+        // Safety: the pointers are valid for the lifetime of `self`; guaranteed by the
+        // `B: Binding`'s reference count.
         unsafe { self.value.as_ref() }
     }
 }
