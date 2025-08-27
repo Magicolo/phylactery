@@ -8,6 +8,7 @@ use core::{
     ptr::{self, NonNull, drop_in_place, read},
 };
 
+#[derive(Debug)]
 pub struct Soul<T: ?Sized, B: Binding> {
     _marker: PhantomPinned,
     bind: B,

@@ -1,6 +1,7 @@
 use crate::{Binding, lich, soul};
 use core::sync::atomic::{AtomicU32, Ordering};
 
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct Lock(AtomicU32);
 pub type Lich<T> = lich::Lich<T, Lock>;

@@ -1,5 +1,6 @@
 use crate::{Binding, lich, soul};
 
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct Cell(core::cell::Cell<u32>);
 pub type Lich<T> = lich::Lich<T, Cell>;
@@ -10,11 +11,11 @@ unsafe impl Binding for Cell {
 
     fn sever<const FORCE: bool>(&self) -> bool {
         match self.0.get() {
-            0 | u32::MAX => {
+            0 => {
                 self.0.set(u32::MAX);
                 true
             }
-            value if FORCE => panic!("{value} `Lich<T>`es have not been redeemed"),
+            value if FORCE => panic(value),
             _ => false,
         }
     }
@@ -41,4 +42,23 @@ unsafe impl Binding for Cell {
         self.0.set(value - 1);
         value
     }
+}
+
+fn panic(value: u32) -> bool {
+    #[cfg(feature = "std")]
+    if std::thread::panicking() {
+        return false;
+    }
+
+    #[cfg(not(feature = "std"))]
+    {
+        use core::sync::atomic::{AtomicBool, Ordering};
+
+        static PANIC: AtomicBool = AtomicBool::new(false);
+        if PANIC.swap(true, Ordering::Relaxed) {
+            return false;
+        }
+    }
+
+    panic!("{value} `Lich<T>`es have not been redeemed")
 }

@@ -1,136 +1,137 @@
 // use core::ops::Deref;
 
-// #[cfg(any(feature = "lock", feature = "cell"))]
-// macro_rules! lock_cell {
-//     () => {
-//         #[test]
-//         fn can_sever_lich() {
-//             let function = || {};
-//             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-//             assert!(lich.sever());
-//             assert!(!soul.sever());
-//         }
+macro_rules! tests {
+    () => {
+        #[test]
+        fn can_sever_unbound_soul() {
+            let soul = Box::pin(Soul::new(|| 'a')).sever();
+            assert_eq!(soul(), 'a');
+        }
 
-//         #[test]
-//         fn can_sever_soul() {
-//             let function = || {};
-//             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-//             assert!(soul.sever());
-//             assert_eq!(lich.try_sever().ok(), Some(false));
-//         }
+        #[test]
+        fn can_try_sever_unbound_soul() {
+            assert!(Box::pin(Soul::new(|| 'a')).try_sever().is_ok());
+        }
 
-//         #[test]
-//         fn can_try_sever_lich() {
-//             let function = || {};
-//             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-//             assert_eq!(lich.try_sever().ok(), Some(true));
-//             assert_eq!(soul.try_sever().ok(), Some(false));
-//         }
+        #[test]
+        fn can_not_try_sever_bound_soul() {
+            let soul = Box::pin(Soul::new(|| {}));
+            let lich = soul.as_ref().bind::<dyn Fn()>();
+            let soul = soul.try_sever().err().unwrap();
+            drop(lich);
+            drop(soul);
+        }
 
-//         #[test]
-//         fn can_try_sever_soul() {
-//             let function = || {};
-//             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-//             assert_eq!(soul.try_sever().ok(), Some(true));
-//             assert_eq!(lich.try_sever().ok(), Some(false));
-//         }
+        #[test]
+        fn has_bindings() {
+            let soul = Box::pin(Soul::new(|| {}));
+            assert_eq!(soul.bindings(), 0);
+            let lich1 = soul.as_ref().bind::<dyn Fn()>();
+            assert_eq!(soul.bindings(), 1);
+            assert_eq!(lich1.bindings(), 1);
+            let lich2 = lich1.clone();
+            assert_eq!(soul.bindings(), 2);
+            assert_eq!(lich1.bindings(), 2);
+            assert_eq!(lich2.bindings(), 2);
+            drop(lich1);
+            assert_eq!(soul.bindings(), 1);
+            assert_eq!(lich2.bindings(), 1);
+            assert!(soul.redeem(lich2).is_ok());
+            assert_eq!(soul.bindings(), 0);
+        }
 
-//         #[test]
-//         fn can_create_default_lich() {
-//             let lich = Lich::<()>::default();
-//             assert!(!lich.try_sever().ok().unwrap());
-//             let lich = Lich::<()>::default();
-//             assert!(!lich.sever());
-//         }
+        #[test]
+        fn can_clone_lich() {
+            let soul = Box::pin(Soul::new(|| {}));
+            let lich1 = soul.as_ref().bind::<dyn Fn()>();
+            let lich2 = lich1.clone();
+            assert!(soul.redeem(lich1).is_ok());
+            assert!(soul.redeem(lich2).is_ok());
+        }
 
-//         #[test]
-//         fn can_not_borrow_after_lich_sever() {
-//             let function = || {};
-//             let (lich1, soul) = ritual::<_, dyn Fn()>(&function);
-//             let lich2 = lich1.clone();
-//             assert!(lich1.sever());
-//             assert!(lich2.borrow().is_none());
-//             assert!(redeem(lich2, soul).ok().flatten().is_none());
-//         }
+        #[test]
+        fn can_redeem_bound_lich() {
+            let soul = Box::pin(Soul::new(|| {}));
+            let lich = soul.as_ref().bind::<dyn Fn()>();
+            assert!(soul.redeem(lich).is_ok());
+        }
 
-//         #[test]
-//         fn can_not_borrow_after_soul_sever() {
-//             let function = || {};
-//             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-//             assert!(soul.sever());
-//             assert!(lich.borrow().is_none());
-//             assert!(!lich.sever());
-//         }
+        #[test]
+        fn can_not_redeem_other_lich() {
+            let soul1 = Box::pin(Soul::new(|| {}));
+            let soul2 = Box::pin(Soul::new(|| {}));
+            let lich1 = soul1.as_ref().bind::<dyn Fn()>();
+            let lich2 = soul2.as_ref().bind::<dyn Fn()>();
+            assert!(soul1.redeem(lich2).is_err());
+            assert!(soul2.redeem(lich1).is_err());
+        }
 
-//         #[test]
-//         fn is_not_bound_after_lich_sever() {
-//             let function = || {};
-//             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-//             assert!(lich.sever());
-//             assert!(!soul.is_bound());
-//         }
+        #[test]
+        fn can_redeem_in_any_order() {
+            let soul = Box::pin(Soul::new(|| {}));
+            let lich1 = soul.as_ref().bind::<dyn Fn()>();
+            let lich2 = soul.as_ref().bind::<dyn Fn()>();
+            let lich3 = lich2.clone();
+            assert!(soul.redeem(lich3).is_ok());
+            assert!(soul.redeem(lich2).is_ok());
+            assert!(soul.redeem(lich1).is_ok());
+        }
+    };
+}
 
-//         #[test]
-//         fn is_not_bound_after_soul_sever() {
-//             let function = || {};
-//             let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-//             assert!(soul.sever());
-//             assert!(!lich.is_bound());
-//         }
-//     };
-// }
+#[cfg(feature = "cell")]
+mod cell {
+    use core::cell::RefCell;
+    use phylactery::cell::{Lich, Soul};
 
-// #[cfg(any(feature = "lock", feature = "cell", feature = "atomic"))]
-// macro_rules! lock_cell_atomic {
-//     ([$($location: ident)?]) => {
-//         #[test]
-//         fn redeem_fails_with_some() {
-//             let function = || {};
-//             $(let mut $location = 0;)?
-//             let (lich1, soul1) = ritual::<_, dyn Fn()>(&function $(, &mut
-// $location)?);             $(let mut $location = 0;)?
-//             let (lich2, soul2) = ritual::<_, dyn Fn()>(&function $(, &mut
-// $location)?);             let (lich1, soul2) = redeem(lich1,
-// soul2).err().unwrap();             let (lich2, soul1) = redeem(lich2,
-// soul1).err().unwrap();             assert!(redeem(lich1,
-// soul1).ok().flatten().is_none());             assert!(redeem(lich2,
-// soul2).ok().flatten().is_none());         }
+    tests!();
 
-//         #[test]
-//         fn can_clone_lich() {
-//             let function = || {};
-//             $(let mut $location = 0;)?
-//             let (lich1, soul) = ritual::<_, dyn Fn()>(&function $(, &mut
-// $location)?);             let lich2 = lich1.clone();
-//             let soul = redeem(lich1, soul).ok().flatten().unwrap();
-//             assert!(redeem(lich2, soul).ok().flatten().is_none());
-//         }
+    #[test]
+    fn can_be_stored_as_static() {
+        thread_local! {
+            static LICH: RefCell<Option<Lich<dyn Fn()>>> = RefCell::new(None);
+        }
+        let soul = Box::pin(Soul::new(|| {}));
+        let lich = soul.as_ref().bind::<dyn Fn()>();
+        LICH.set(Some(lich));
+        LICH.take().unwrap();
+    }
 
-//         #[test]
-//         fn can_redeem_in_any_order() {
-//             let function = || {};
-//             $(let mut $location = 0;)?
-//             let (lich1, soul) = ritual::<_, dyn Fn()>(&function $(, &mut
-// $location)?);             let lich2 = lich1.clone();
-//             let lich3 = lich2.clone();
-//             let lich4 = lich1.clone();
-//             let soul = redeem(lich2, soul).ok().flatten().unwrap();
-//             let soul = redeem(lich3, soul).ok().flatten().unwrap();
-//             let soul = redeem(lich1, soul).ok().flatten().unwrap();
-//             assert!(redeem(lich4, soul).ok().flatten().is_none());
-//         }
+    #[test]
+    #[should_panic]
+    fn panics_when_bound_soul_is_dropped() {
+        let soul = Box::pin(Soul::new(|| {}));
+        let lich = soul.as_ref().bind::<dyn Fn()>();
+        drop(soul);
+        drop(lich);
+    }
+}
 
-//         #[test]
-//         fn is_bound() {
-//             let function = || {};
-//             $(let mut $location = 0;)?
-//             let (lich, soul) = ritual::<_, dyn Fn()>(&function $(, &mut
-// $location)?);             assert!(lich.is_bound());
-//             assert!(soul.is_bound());
-//             assert!(redeem(lich, soul).ok().flatten().is_none());
-//         }
-//     };
-// }
+#[cfg(feature = "lock")]
+mod lock {
+    use phylactery::lock::{Lich, Soul};
+    use std::{sync::Mutex, thread::spawn};
+
+    tests!();
+
+    #[test]
+    fn can_send_to_thread() {
+        let soul = Box::pin(Soul::new(|| {}));
+        let lich = soul.as_ref().bind::<dyn Fn() + Sync>();
+        spawn(move || {
+            lich();
+        });
+    }
+
+    #[test]
+    fn can_be_stored_as_static() {
+        static LICH: Mutex<Option<Lich<dyn Fn() + Sync>>> = Mutex::new(None);
+        let soul = Box::pin(Soul::new(|| {}));
+        let lich = soul.as_ref().bind::<dyn Fn() + Sync>();
+        assert!(LICH.lock().unwrap().replace(lich).is_none());
+        assert!(LICH.lock().unwrap().take().is_some());
+    }
+}
 
 // macro_rules! lock_atomic_raw {
 //     ([$($safe: ident)?] [$($unwrap: ident)?] [$ok: expr] [$($location:
@@ -185,8 +186,8 @@
 //                 let guard = $($safe)? { lich1.borrow() }$(.$unwrap())?;
 //                 $(let mut $location = 0;)?
 //                 let (lich2, soul2) = ritual::<_, dyn Fn() ->
-// char>(guard.deref() $(, &mut $location)?);                 
-// assert_eq!($($safe)? { lich2.borrow() }$(.$unwrap())?(), 'a');               
+// char>(guard.deref() $(, &mut $location)?);
+// assert_eq!($($safe)? { lich2.borrow() }$(.$unwrap())?(), 'a');
 // assert!($ok(redeem(lich2, soul2)));             }
 //             assert!($ok(redeem(lich1, soul1)));
 //         }
