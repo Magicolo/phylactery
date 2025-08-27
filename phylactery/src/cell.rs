@@ -1,4 +1,4 @@
-use crate::{Binding, lich, soul};
+use crate::{Binding, lich, panic, soul};
 
 #[derive(Debug)]
 #[repr(transparent)]
@@ -15,6 +15,7 @@ unsafe impl Binding for Cell {
                 self.0.set(u32::MAX);
                 true
             }
+            u32::MAX => true,
             value if FORCE => panic(value),
             _ => false,
         }
@@ -42,23 +43,4 @@ unsafe impl Binding for Cell {
         self.0.set(value - 1);
         value
     }
-}
-
-fn panic(value: u32) -> bool {
-    #[cfg(feature = "std")]
-    if std::thread::panicking() {
-        return false;
-    }
-
-    #[cfg(not(feature = "std"))]
-    {
-        use core::sync::atomic::{AtomicBool, Ordering};
-
-        static PANIC: AtomicBool = AtomicBool::new(false);
-        if PANIC.swap(true, Ordering::Relaxed) {
-            return false;
-        }
-    }
-
-    panic!("{value} `Lich<T>`es have not been redeemed")
 }

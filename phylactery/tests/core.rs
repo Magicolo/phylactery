@@ -1,16 +1,13 @@
-// use core::ops::Deref;
-
 macro_rules! tests {
     () => {
         #[test]
         fn can_sever_unbound_soul() {
-            let soul = Box::pin(Soul::new(|| 'a')).sever();
-            assert_eq!(soul(), 'a');
+            assert_eq!(Box::pin(Soul::new(|| 'a')).sever()(), 'a');
         }
 
         #[test]
         fn can_try_sever_unbound_soul() {
-            assert!(Box::pin(Soul::new(|| 'a')).try_sever().is_ok());
+            assert_eq!(Box::pin(Soul::new(|| 'a')).try_sever().ok().unwrap()(), 'a');
         }
 
         #[test]

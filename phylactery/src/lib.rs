@@ -44,6 +44,35 @@ pub unsafe trait Binding {
     fn decrement(&self) -> u32;
 }
 
+#[cfg(not(feature = "std"))]
+static PANIC: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
+fn is_panicking() -> bool {
+    #[cfg(feature = "std")]
+    return std::thread::panicking();
+
+    #[cfg(not(feature = "std"))]
+    return PANIC.load(core::sync::atomic::Ordering::Relaxed);
+}
+
+fn panic(value: u32) -> bool {
+    #[cfg(feature = "std")]
+    if std::thread::panicking() {
+        return false;
+    }
+
+    #[cfg(not(feature = "std"))]
+    if PANIC.swap(true, core::sync::atomic::Ordering::Relaxed) {
+        return false;
+    }
+
+    if value <= 1 {
+        panic!("'{value}' `Lich<T>` has not been redeemed")
+    } else {
+        panic!("'{value}' `Lich<T>`es have not been redeemed")
+    }
+}
+
 #[allow(dead_code)]
 mod tests {
     macro_rules! fail {

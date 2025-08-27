@@ -1,4 +1,4 @@
-use crate::Binding;
+use crate::{Binding, is_panicking};
 use core::{borrow::Borrow, ops::Deref, ptr::NonNull};
 
 pub struct Lich<T: ?Sized, B: Binding + ?Sized> {
@@ -49,6 +49,11 @@ impl<T: ?Sized, B: Binding + ?Sized> Clone for Lich<T, B> {
 
 impl<T: ?Sized, B: Binding + ?Sized> Drop for Lich<T, B> {
     fn drop(&mut self) {
+        if is_panicking() {
+            // Do not attempt to read the `bind` pointer if the thread is panicking.
+            return;
+        }
+
         let bind = self.bind_ref();
         match bind.decrement() {
             0 | u32::MAX => unreachable!(),
