@@ -10,7 +10,7 @@ use phylactery::shroud::{Shroud, shroud};
 #[shroud]
 pub trait Simple {}
 
-pub fn simple<S: Simple>(simple: NonNull<S>) {
+pub fn simple_compiles<S: Simple>(simple: NonNull<S>) {
     <dyn Simple>::shroud(simple);
 }
 
@@ -18,7 +18,7 @@ pub fn simple<S: Simple>(simple: NonNull<S>) {
 #[shroud(Self, Send, Sync, Unpin, ..)]
 pub trait Combine {}
 
-pub fn combine<T: Combine + Send + Sync + Unpin>(combine: NonNull<T>) {
+pub fn combine_compiles<T: Combine + Send + Sync + Unpin>(combine: NonNull<T>) {
     <dyn Combine>::shroud(combine);
     <dyn Combine + Send>::shroud(combine);
     <dyn Combine + Sync>::shroud(combine);
@@ -50,7 +50,7 @@ where
     type A;
 }
 
-pub fn complex<
+pub fn complex_compiles<
     'a,
     T: Debug,
     U: FromStr + 'a,
