@@ -44,15 +44,15 @@ pub unsafe trait Binding {
     fn decrement(&self) -> u32;
 }
 
-#[cfg(not(feature = "std"))]
 static PANIC: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 
 fn is_panicking() -> bool {
     #[cfg(feature = "std")]
-    return std::thread::panicking();
+    if std::thread::panicking() {
+        return true;
+    }
 
-    #[cfg(not(feature = "std"))]
-    return PANIC.load(core::sync::atomic::Ordering::Relaxed);
+    PANIC.load(core::sync::atomic::Ordering::Relaxed)
 }
 
 fn panic(value: u32) -> bool {
@@ -61,7 +61,6 @@ fn panic(value: u32) -> bool {
         return false;
     }
 
-    #[cfg(not(feature = "std"))]
     if PANIC.swap(true, core::sync::atomic::Ordering::Relaxed) {
         return false;
     }
@@ -73,8 +72,26 @@ fn panic(value: u32) -> bool {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn is_panicking_is_false() {
+        assert!(!is_panicking());
+    }
+
+    #[test]
+    #[cfg(feature = "std")]
+    fn is_panicking_is_true() {
+        std::panic::catch_unwind(|| panic(0)).unwrap_err();
+        assert!(is_panicking());
+    }
+}
+
+#[allow(dead_code)]
+mod fails {
+
     macro_rules! fail {
         ($function: ident, $block: block) => {
             #[doc = concat!("```compile_fail\n", stringify!($block), "\n```")]
