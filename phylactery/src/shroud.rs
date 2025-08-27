@@ -156,6 +156,7 @@ mod implement {
     shroud_ty! { use: ::core::cmp::PartialOrd, trait: PartialOrd, generics: (T), bounds: (), associates: (), dynamic: true }
     shroud_ty! { use: ::core::convert::AsMut, trait: AsMut, generics: (T), bounds: (), associates: (), dynamic: true }
     shroud_ty! { use: ::core::convert::AsRef, trait: AsRef, generics: (T), bounds: (), associates: (), dynamic: true }
+    #[rustversion::since(1.81.0)]
     shroud_ty! { use: ::core::error::Error, trait: Error, generics: (), bounds: (), associates: (), dynamic: true }
     shroud_ty! { use: ::core::future::Future, trait: Future, generics: (), bounds: (), associates: (Output), dynamic: true }
     shroud_ty! { use: ::core::hash::BuildHasher, trait: BuildHasher, generics: (), bounds: (), associates: (Hasher), dynamic: true }
@@ -201,6 +202,10 @@ mod implement {
         shroud_ty! { use: ::core::ops::ShrAssign, trait: ShrAssign, generics: (), bounds: (T: Sized), associates: (), dynamic: true }
         shroud_ty! { use: ::core::ops::SubAssign, trait: SubAssign, generics: (), bounds: (T: Sized), associates: (), dynamic: true }
     };
+
+    #[cfg(feature = "std")]
+    #[rustversion::before(1.81.0)]
+    shroud_ty! { use: ::std::error::Error, trait: Error, generics: (), bounds: (), associates: (), dynamic: true }
 
     #[cfg(feature = "std")]
     const _: () = {

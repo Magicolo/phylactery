@@ -69,10 +69,8 @@ impl Shroud {
     }
 }
 
-impl TryFrom<&Attribute> for Shroud {
-    type Error = Error;
-
-    fn try_from(value: &Attribute) -> Result<Self, Self::Error> {
+impl Shroud {
+    pub fn try_from(value: &Attribute) -> Result<Self, Error> {
         const PATHS: [&[&str]; 2] = [&["phylactery", "shroud"], &["shroud"]];
 
         let path = value.path();

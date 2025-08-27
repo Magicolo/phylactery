@@ -1,4 +1,4 @@
-use crate::{Bind, lich::Lich, shroud::Shroud};
+use crate::{Binding, lich::Lich, shroud::Shroud};
 use core::{
     borrow::Borrow,
     marker::PhantomPinned,
@@ -8,13 +8,13 @@ use core::{
     ptr::{self, NonNull, drop_in_place, read},
 };
 
-pub struct Soul<T: ?Sized, B: Bind> {
+pub struct Soul<T: ?Sized, B: Binding> {
     _marker: PhantomPinned,
     bind: B,
     value: T,
 }
 
-impl<T, B: Bind> Soul<T, B> {
+impl<T, B: Binding> Soul<T, B> {
     pub const fn new(value: T) -> Self {
         Self {
             value,
@@ -23,12 +23,16 @@ impl<T, B: Bind> Soul<T, B> {
         }
     }
 
-    pub fn sever(self) -> T {
+    pub fn pin(self) -> Pin<Box<Self>> {
+        Box::pin(self)
+    }
+
+    pub fn sever(self: Pin<Box<Self>>) -> T {
         self.bind.sever::<true>();
         self.consume()
     }
 
-    pub fn try_sever(self) -> Result<T, Self> {
+    pub fn try_sever(self: Pin<Box<Self>>) -> Result<T, Pin<Box<Self>>> {
         if self.bind.sever::<false>() {
             Ok(self.consume())
         } else {
@@ -36,14 +40,15 @@ impl<T, B: Bind> Soul<T, B> {
         }
     }
 
-    fn consume(self) -> T {
-        let mut soul = ManuallyDrop::new(self);
+    fn consume(self: Pin<Box<Self>>) -> T {
+        let soul = *unsafe { Pin::into_inner_unchecked(self) };
+        let mut soul = ManuallyDrop::new(soul);
         unsafe { drop_in_place(&mut soul.bind) };
         unsafe { read(&soul.value) }
     }
 }
 
-impl<T: ?Sized, B: Bind> Soul<T, B> {
+impl<T: ?Sized, B: Binding> Soul<T, B> {
     pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S, B> {
         self.bind.increment();
         Lich {
@@ -53,29 +58,28 @@ impl<T: ?Sized, B: Bind> Soul<T, B> {
     }
 
     pub fn bindings(&self) -> usize {
-        self.bind.bindings() as _
+        self.bind.count() as _
     }
 
     pub fn redeem<S: ?Sized>(&self, lich: Lich<S, B>) -> Result<usize, Lich<S, B>> {
         if ptr::eq(&self.bind, lich.bind.as_ptr()) {
             forget(lich);
-            let bindings = self.bind.decrement();
-            Ok(bindings as _)
+            Ok(self.bind.decrement() as _)
         } else {
             Err(lich)
         }
     }
 
-    fn value_ptr(self: Pin<&Self>) -> NonNull<T> {
+    fn value_ptr(&self) -> NonNull<T> {
         unsafe { NonNull::new_unchecked(&self.value as *const _ as _) }
     }
 
-    fn bind_ptr(self: Pin<&Self>) -> NonNull<B> {
+    fn bind_ptr(&self) -> NonNull<B> {
         unsafe { NonNull::new_unchecked(&self.bind as *const _ as _) }
     }
 }
 
-impl<T: ?Sized, B: Bind> Deref for Soul<T, B> {
+impl<T: ?Sized, B: Binding> Deref for Soul<T, B> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -83,19 +87,19 @@ impl<T: ?Sized, B: Bind> Deref for Soul<T, B> {
     }
 }
 
-impl<T: ?Sized, B: Bind> AsRef<T> for Soul<T, B> {
+impl<T: ?Sized, B: Binding> AsRef<T> for Soul<T, B> {
     fn as_ref(&self) -> &T {
         &self.value
     }
 }
 
-impl<T: ?Sized, B: Bind> Borrow<T> for Soul<T, B> {
+impl<T: ?Sized, B: Binding> Borrow<T> for Soul<T, B> {
     fn borrow(&self) -> &T {
         &self.value
     }
 }
 
-impl<T: ?Sized, B: Bind> Drop for Soul<T, B> {
+impl<T: ?Sized, B: Binding> Drop for Soul<T, B> {
     fn drop(&mut self) {
         self.bind.sever::<true>();
     }

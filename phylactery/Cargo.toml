@@ -1,6 +1,6 @@
 [package]
 name = "phylactery"
-version = "0.5.3"
+version = "1.0.0"
 edition = "2021"
 authors = ["Magicolo <magicololand@gmail.com>"]
 readme = "README.md"
@@ -10,7 +10,7 @@ license = "MIT"
 repository = "https://github.com/Magicolo/phylactery"
 keywords = ["unsafe", "lifetime", "scope", "extension", "static"]
 categories = ["concurrency", "no-std", "data-structures", "memory-management"]
-rust-version = "1.79"
+rust-version = "1.75"
 
 [badges]
 github = { repository = "Magicolo/phylactery", workflow = "test" }
@@ -23,5 +23,6 @@ lock = ["atomic-wait"]
 shroud = ["phylactery_macro"]
 
 [dependencies]
-phylactery_macro = { version = "0.2.0", path = "../phylactery_macro", default-features = false, optional = true }
 atomic-wait = { version = "1.1.0", optional = true, default-features = false }
+phylactery_macro = { version = "0.2.0", path = "../phylactery_macro", default-features = false, optional = true }
+rustversion = "1.0.22"

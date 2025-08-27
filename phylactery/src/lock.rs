@@ -1,4 +1,4 @@
-use crate::{Bind, lich, soul};
+use crate::{Binding, lich, soul};
 use core::sync::atomic::{AtomicU32, Ordering};
 
 #[repr(transparent)]
@@ -6,7 +6,7 @@ pub struct Lock(AtomicU32);
 pub type Lich<T> = lich::Lich<T, Lock>;
 pub type Soul<P> = soul::Soul<P, Lock>;
 
-unsafe impl Bind for Lock {
+unsafe impl Binding for Lock {
     const NEW: Self = Self(AtomicU32::new(0));
 
     fn sever<const FORCE: bool>(&self) -> bool {
@@ -26,9 +26,11 @@ unsafe impl Bind for Lock {
         atomic_wait::wake_one(&self.0);
     }
 
-    fn bindings(&self) -> u32 {
-        let count = self.0.load(Ordering::Relaxed);
-        if count == u32::MAX { 0 } else { count }
+    fn count(&self) -> u32 {
+        match self.0.load(Ordering::Relaxed) {
+            0 | u32::MAX => 0,
+            count => count,
+        }
     }
 
     fn increment(&self) -> u32 {

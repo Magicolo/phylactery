@@ -1,11 +1,11 @@
-use crate::{Bind, lich, soul};
+use crate::{Binding, lich, soul};
 
 #[repr(transparent)]
 pub struct Cell(core::cell::Cell<u32>);
 pub type Lich<T> = lich::Lich<T, Cell>;
 pub type Soul<P> = soul::Soul<P, Cell>;
 
-unsafe impl Bind for Cell {
+unsafe impl Binding for Cell {
     const NEW: Self = Self(core::cell::Cell::new(0));
 
     fn sever<const FORCE: bool>(&self) -> bool {
@@ -21,9 +21,11 @@ unsafe impl Bind for Cell {
 
     fn redeem(&self) {}
 
-    fn bindings(&self) -> u32 {
-        let count = self.0.get();
-        if count == u32::MAX { 0 } else { count }
+    fn count(&self) -> u32 {
+        match self.0.get() {
+            0 | u32::MAX => 0,
+            count => count,
+        }
     }
 
     fn increment(&self) -> u32 {
