@@ -1,6 +1,11 @@
+//! A [`Binding`] variant suitable for multi-threaded scenarios.
+//!
+//! This variant can be sent to other threads. See the
+//! [crate-level documentation](crate) for more details.
 use crate::{Binding, lich, soul};
 use core::sync::atomic::{AtomicU32, Ordering};
 
+/// A [`Binding`] that uses an `AtomicU32` as a reference counter.
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct Lock(AtomicU32);

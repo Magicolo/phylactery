@@ -4,11 +4,11 @@ version = "1.0.0"
 edition = "2021"
 authors = ["Magicolo <magicololand@gmail.com>"]
 readme = "README.md"
-documentation = "https://docs.rs/phylactery/latest/checkito/"
+documentation = "https://docs.rs/phylactery/latest/phylactery/"
 description = "Safe and thin wrappers around lifetime extension to allow non-static values to cross static boundaries."
 license = "MIT"
 repository = "https://github.com/Magicolo/phylactery"
-keywords = ["unsafe", "lifetime", "scope", "extension", "static"]
+keywords = ["unsafe", "lifetime", "extension", "static", "pin"]
 categories = ["concurrency", "no-std", "data-structures", "memory-management"]
 rust-version = "1.75"
 
