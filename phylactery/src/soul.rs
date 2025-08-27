@@ -56,22 +56,23 @@ impl<T, B: Binding> Soul<T, B> {
         }
     }
 
-    /// Severs the binding between this [`Soul`] and all of its [`Lich`]es.
-    ///
-    /// The [`Soul`] is returned with its pinning guarantees removed.
-    #[cfg(feature = "std")]
+    pub fn consume(self) -> T {
+        // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
+        // this unpinned `Soul`.
+        let mut soul = ManuallyDrop::new(self);
+        unsafe { drop_in_place(&mut soul.bind) };
+        unsafe { read(&soul.value) }
+    }
+}
+
+#[cfg(feature = "std")]
+impl<T, B: Binding> Soul<T, B> {
     pub fn sever(self: Pin<Box<Self>>) -> Box<Self> {
         self.bind.sever::<true>();
         // Safety: all bindings have been severed, guaranteed by `B::sever`.
         unsafe { self.unpin() }
     }
 
-    /// Attempts to sever the binding between this [`Soul`] and all of its
-    /// [`Lich`]es.
-    ///
-    /// If successful, the [`Soul`] is returned with its pinning guarantees
-    /// removed.
-    #[cfg(feature = "std")]
     pub fn try_sever(self: Pin<Box<Self>>) -> Result<Box<Self>, Pin<Box<Self>>> {
         if self.bind.sever::<false>() {
             // Safety: all bindings have been severed, guaranteed by `B::sever`.
@@ -81,23 +82,10 @@ impl<T, B: Binding> Soul<T, B> {
         }
     }
 
-    /// Consumes the [`Soul`] and returns the value it owned.
-    ///
-    /// Note that a [`Soul`] can only be consumed if it is not pinned, which in
-    /// turn guarantees that no [`Lich`]es are bound to it.
-    pub fn consume(self) -> T {
-        // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
-        // this unpinned `Soul`.
-        let mut soul = ManuallyDrop::new(self);
-        unsafe { drop_in_place(&mut soul.bind) };
-        unsafe { read(&soul.value) }
-    }
-
     /// # Safety
     ///
-    /// It **must** be the case that all bindings to [`Lich`]es have been
-    /// severed before calling this function.
-    #[cfg(feature = "std")]
+    /// It **must** be the case the all bindings to [`Lich`]es have been severed
+    /// before calling this function.
     unsafe fn unpin(self: Pin<Box<Self>>) -> Box<Self> {
         debug_assert_eq!(self.bindings(), 0);
         // Safety: no `Lich`es are bound, the `Soul` can be unpinned.

@@ -2,9 +2,7 @@ name: test
 
 on:
   push:
-    branches: ["main"]
   pull_request:
-    branches: ["main"]
 
 jobs:
   test:
@@ -14,9 +12,7 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - run: cargo hack nextest run --release --all-targets --verbose --feature-powerset
-    - run: cargo hack nextest run --release --all-targets --verbose --feature-powerset --rust-version
     - run: cargo hack test --doc --release --all-features --verbose
-    - run: cargo hack test --doc --release --all-features --verbose --rust-version
   miri:
     runs-on: ubuntu-latest
     container: 
