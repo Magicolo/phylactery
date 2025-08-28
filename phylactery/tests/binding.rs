@@ -44,6 +44,15 @@ macro_rules! tests {
         }
 
         #[test]
+        fn bound_lich_is_bound() {
+            let soul1 = pin!(Soul::new(|| {}));
+            let soul2 = pin!(Soul::new(|| {}));
+            let lich = soul1.as_ref().bind::<dyn Fn()>();
+            assert!(soul1.is_bound(&lich));
+            assert!(!soul2.is_bound(&lich));
+        }
+
+        #[test]
         fn can_clone_lich() {
             let soul = Box::pin(Soul::new(|| {}));
             let lich1 = soul.as_ref().bind::<dyn Fn()>();
@@ -98,6 +107,24 @@ macro_rules! tests {
             let lich = soul.as_ref().bind::<dyn Fn() -> char>();
             assert_eq!(lich(), 'a');
         }
+
+        #[test]
+        fn can_pin_with_arc() {
+            let soul = Arc::pin(Soul::new(|| 'a'));
+            assert_eq!(soul(), 'a');
+            let lich = soul.as_ref().bind::<dyn Fn() -> char>();
+            assert_eq!(lich(), 'a');
+            assert_eq!(soul.bindings(), 1);
+        }
+
+        #[test]
+        fn can_pin_with_rc() {
+            let soul = Rc::pin(Soul::new(|| 'a'));
+            assert_eq!(soul(), 'a');
+            let lich = soul.as_ref().bind::<dyn Fn() -> char>();
+            assert_eq!(lich(), 'a');
+            assert_eq!(soul.bindings(), 1);
+        }
     };
 }
 
@@ -105,6 +132,7 @@ macro_rules! tests {
 mod cell {
     use core::{cell::RefCell, pin::pin};
     use phylactery::cell::{Lich, Soul};
+    use std::{rc::Rc, sync::Arc};
 
     tests!();
 
@@ -133,7 +161,11 @@ mod cell {
 mod atomic {
     use core::pin::pin;
     use phylactery::atomic::{Lich, Soul};
-    use std::{sync::Mutex, thread::spawn};
+    use std::{
+        rc::Rc,
+        sync::{Arc, Mutex},
+        thread::spawn,
+    };
 
     tests!();
 

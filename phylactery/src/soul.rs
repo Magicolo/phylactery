@@ -31,7 +31,8 @@ use core::{
 /// [`Soul`], and pinning guarantees that the [`Soul`]'s memory location will
 /// not change, preventing the pointers from becoming invalid. You can pin a
 /// [`Soul`] to the stack with [`pin!`](core::pin::pin) or to the heap with
-/// [`Box::pin`].
+/// [`Box::pin`]/[`Arc::pin`](std::sync::Arc::pin)/
+/// [`Rc::pin`](std::rc::Rc::pin).
 ///
 /// # Dropping
 ///
@@ -103,18 +104,24 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
         }
     }
 
+    pub fn is_bound<S: ?Sized>(&self, lich: &Lich<S, B>) -> bool {
+        ptr::eq(&self.bind, lich.bind.as_ptr())
+    }
+
     /// Returns the number of [`Lich`]es that are currently bound to this
     /// [`Soul`].
     pub fn bindings(&self) -> usize {
         self.bind.count() as _
     }
 
-    /// Redeems a [`Lich`] that was bound to this [`Soul`].
+    /// Disposes of a [`Lich`] that was bound to this [`Soul`]. While not
+    /// required, returning the [`Lich`]es explicitly to the [`Soul`] ensures
+    /// that they will all be dropped when the [`Soul`] is dropped.
     ///
     /// If the [`Lich`] was not bound to this [`Soul`], it is returned as an
     /// [`Err`].
     pub fn redeem<S: ?Sized>(&self, lich: Lich<S, B>) -> Result<usize, Lich<S, B>> {
-        if ptr::eq(&self.bind, lich.bind.as_ptr()) {
+        if self.is_bound(&lich) {
             forget(lich);
             Ok(self.bind.decrement() as _)
         } else {

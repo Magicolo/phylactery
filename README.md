@@ -15,7 +15,7 @@ Safe and thin wrappers around lifetime extension to allow non-static values to c
 
 ---
 ### In Brief
-- A `Soul<T, B>` wraps a given value `T`. When pinned (either with `core::pin::pin!` or `Box::pin`), it can produce `Lich<dyn Trait>`es that are bound to it (where `Trait` is a trait implemented by `T`). On drop, it will guarantee that the value `T` becomes unreachable (the behavior varies based on the `B: Binding`).
+- A `Soul<T, B>` wraps a given value `T`. When pinned (either with `core::pin::pin!` or `Box/Arc/Rc::pin`), it can produce `Lich<dyn Trait>`es that are bound to it (where `Trait` is a trait implemented by `T`). On drop, it will guarantee that the value `T` becomes unreachable (the behavior varies based on the `B: Binding`).
 - A `Lich<T, B>` is a handle to the value inside the `Soul`. It may have any lifetime (including `'static`), thus it is allowed to cross `'static` boundaries (such as when `std::thread::spawn`ing a thread or when storing a value in a `static` variable).
 
 Two `B: Binding` implementations are currently supported and offer different tradeoffs:
