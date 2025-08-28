@@ -79,6 +79,8 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
         }
     }
 
+    /// Returns `true` if the [`Lich`] has been bound by this [`Soul`]'s
+    /// [`bind`](Soul::bind) method.
     pub fn is_bound<S: ?Sized>(&self, lich: &Lich<S, B>) -> bool {
         ptr::eq(&self.bind, lich.bind.as_ptr())
     }
@@ -104,12 +106,16 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
         }
     }
 
+    /// Severs all bindings to [`Lich`]es from this [`Soul`], returning the
+    /// unpinned [`Soul`].
     pub fn sever<S: Deref<Target = Self>>(this: Pin<S>) -> S {
         this.bind.sever::<true>();
         // Safety: all bindings have been severed, guaranteed by `B::sever`.
         unsafe { Self::unpin(this) }
     }
 
+    /// Attempts to sever all bindings to [`Lich`]es from this [`Soul`],
+    /// returning the unpinned [`Soul`].
     pub fn try_sever<S: Deref<Target = Self>>(this: Pin<S>) -> Result<S, Pin<S>> {
         if this.bind.sever::<false>() {
             // Safety: all bindings have been severed, guaranteed by `B::sever`.
