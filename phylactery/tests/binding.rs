@@ -125,6 +125,15 @@ macro_rules! tests {
             assert_eq!(lich(), 'a');
             assert_eq!(soul.bindings(), 1);
         }
+
+        #[test]
+        #[should_panic]
+        fn unwinds_on_same_thread() {
+            let soul = Box::pin(Soul::new(|| {}));
+            let _lich1 = soul.as_ref().bind::<dyn Fn() + Sync>();
+            let _lich2 = _lich1.clone();
+            panic!();
+        }
     };
 }
 
@@ -159,12 +168,12 @@ mod cell {
 
 #[cfg(feature = "atomic")]
 mod atomic {
-    use core::pin::pin;
+    use core::{pin::pin, time::Duration};
     use phylactery::atomic::{Lich, Soul};
     use std::{
         rc::Rc,
         sync::{Arc, Mutex},
-        thread::spawn,
+        thread::{sleep, spawn},
     };
 
     tests!();
@@ -185,5 +194,20 @@ mod atomic {
         let lich = soul.as_ref().bind::<dyn Fn() + Sync>();
         assert!(LICH.lock().unwrap().replace(lich).is_none());
         assert!(LICH.lock().unwrap().take().is_some());
+    }
+
+    #[test]
+    #[should_panic]
+    fn unwinds_on_different_thread() {
+        let soul = Box::pin(Soul::new(|| {}));
+        let lich1 = soul.as_ref().bind::<dyn Fn() + Sync>();
+        let _lich2 = soul.as_ref().bind::<dyn Fn() + Sync>();
+        spawn(move || {
+            lich1();
+            sleep(Duration::from_millis(100));
+            let _lich3 = lich1.clone();
+            panic!();
+        });
+        panic!();
     }
 }
