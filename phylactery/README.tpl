@@ -2,7 +2,7 @@
 
 <p align="center">
     <i>
-Crafted through a vile ritual, a phylactery is a magical receptacle that holds a necromancer's soul, permanently binding it to the mortal world as a lich.
+Crafted through a vile ritual, a phylactery is a magical receptacle that holds a necromancer's soul, permanently binding it to the mortal world as an immortal lich.
 <br/><br/>
 {{ package.description }}
     </i>
