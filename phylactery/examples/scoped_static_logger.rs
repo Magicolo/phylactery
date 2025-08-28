@@ -66,6 +66,7 @@ pub mod scoped_static_logger {
             // The `Lich` is bound to the `Soul` as a `dyn Trait` wrapper.
             let lich = soul.as_ref().bind::<dyn Log>();
             // Push this logger as the current scope.
+            // The non-static `Logger` crosses a `'static` boundary.
             LOGGER.set(Some(lich));
             // Call the function.
             function(argument);
