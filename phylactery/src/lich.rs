@@ -44,7 +44,8 @@ where
 }
 
 impl<T: ?Sized, B: Binding + ?Sized> Lich<T, B> {
-    /// Returns the number of `Lich`es that are currently bound to the [`Soul`].
+    /// Returns the number of `Lich`es that are currently bound to the
+    /// [`Soul`](crate::soul::Soul).
     pub fn bindings(&self) -> usize {
         self.bind_ref().count() as _
     }
