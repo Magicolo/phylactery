@@ -56,29 +56,18 @@ impl<T, B: Binding> Soul<T, B> {
         }
     }
 
-    pub fn consume(self) -> T {
-        // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
-        // this unpinned `Soul`.
-        let mut soul = ManuallyDrop::new(self);
-        unsafe { drop_in_place(&mut soul.bind) };
-        unsafe { read(&soul.value) }
-    }
-}
-
-#[cfg(feature = "std")]
-impl<T, B: Binding> Soul<T, B> {
-    pub fn sever(self: Pin<Box<Self>>) -> Box<Self> {
-        self.bind.sever::<true>();
+    pub fn sever<S: Deref<Target = Self>>(this: Pin<S>) -> S {
+        this.bind.sever::<true>();
         // Safety: all bindings have been severed, guaranteed by `B::sever`.
-        unsafe { self.unpin() }
+        unsafe { Self::unpin(this) }
     }
 
-    pub fn try_sever(self: Pin<Box<Self>>) -> Result<Box<Self>, Pin<Box<Self>>> {
-        if self.bind.sever::<false>() {
+    pub fn try_sever<S: Deref<Target = Self>>(this: Pin<S>) -> Result<S, Pin<S>> {
+        if this.bind.sever::<false>() {
             // Safety: all bindings have been severed, guaranteed by `B::sever`.
-            Ok(unsafe { self.unpin() })
+            Ok(unsafe { Self::unpin(this) })
         } else {
-            Err(self)
+            Err(this)
         }
     }
 
@@ -86,10 +75,18 @@ impl<T, B: Binding> Soul<T, B> {
     ///
     /// It **must** be the case the all bindings to [`Lich`]es have been severed
     /// before calling this function.
-    unsafe fn unpin(self: Pin<Box<Self>>) -> Box<Self> {
-        debug_assert_eq!(self.bindings(), 0);
+    unsafe fn unpin<S: Deref<Target = Self>>(this: Pin<S>) -> S {
+        debug_assert_eq!(this.bindings(), 0);
         // Safety: no `Lich`es are bound, the `Soul` can be unpinned.
-        unsafe { Pin::into_inner_unchecked(self) }
+        unsafe { Pin::into_inner_unchecked(this) }
+    }
+
+    pub fn consume(self) -> T {
+        // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
+        // this unpinned `Soul`.
+        let mut soul = ManuallyDrop::new(self);
+        unsafe { drop_in_place(&mut soul.bind) };
+        unsafe { read(&soul.value) }
     }
 }
 

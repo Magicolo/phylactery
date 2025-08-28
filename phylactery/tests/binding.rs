@@ -5,19 +5,22 @@ macro_rules! tests {
     () => {
         #[test]
         fn can_sever_unbound_soul() {
-            assert_eq!(Box::pin(Soul::new(|| 'a')).sever()(), 'a');
+            assert_eq!(Soul::sever(Box::pin(Soul::new(|| 'a')))(), 'a');
         }
 
         #[test]
         fn can_try_sever_unbound_soul() {
-            assert_eq!(Box::pin(Soul::new(|| 'a')).try_sever().ok().unwrap()(), 'a');
+            assert_eq!(
+                Soul::try_sever(Box::pin(Soul::new(|| 'a'))).ok().unwrap()(),
+                'a'
+            );
         }
 
         #[test]
         fn can_not_try_sever_bound_soul() {
             let soul = Box::pin(Soul::new(|| {}));
             let lich = soul.as_ref().bind::<dyn Fn()>();
-            let soul = soul.try_sever().err().unwrap();
+            let soul = Soul::try_sever(soul).err().unwrap();
             drop(lich);
             drop(soul);
         }
