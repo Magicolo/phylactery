@@ -11,7 +11,7 @@ use crate::{Binding, lich, panic, soul};
 #[repr(transparent)]
 pub struct Cell(core::cell::Cell<u32>);
 pub type Lich<T> = lich::Lich<T, Cell>;
-pub type Soul<P> = soul::Soul<P, Cell>;
+pub type Soul<T> = soul::Soul<T, Cell>;
 
 unsafe impl Binding for Cell {
     const NEW: Self = Self(core::cell::Cell::new(0));

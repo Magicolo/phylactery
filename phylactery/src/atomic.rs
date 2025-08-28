@@ -11,7 +11,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 #[repr(transparent)]
 pub struct Atomic(AtomicU32);
 pub type Lich<T> = lich::Lich<T, Atomic>;
-pub type Soul<P> = soul::Soul<P, Atomic>;
+pub type Soul<T> = soul::Soul<T, Atomic>;
 
 unsafe impl Binding for Atomic {
     const NEW: Self = Self(AtomicU32::new(0));

@@ -42,7 +42,7 @@ Two `B: Binding` implementations are currently supported and offer different tra
 /// Trivially reimplement [`thread::scope`] in a more powerful way.
 ///
 /// Contrary to other `scope` solutions, here, the captured reference can be
-/// returned (as a [`Soul<P>`]) while the threads continue to execute.
+/// returned (as a [`Soul<T>`]) while the threads continue to execute.
 #[cfg(all(feature = "atomic", feature = "shroud"))]
 pub mod thread_spawn_bridge {
     use core::{num::NonZeroUsize, pin::Pin};
