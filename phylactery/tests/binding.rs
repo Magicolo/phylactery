@@ -1,6 +1,6 @@
 #![cfg(all(feature = "shroud", feature = "std"))]
 
-#[cfg(any(feature = "cell", feature = "lock"))]
+#[cfg(any(feature = "cell", feature = "atomic"))]
 macro_rules! tests {
     () => {
         #[test]
@@ -126,10 +126,10 @@ mod cell {
     }
 }
 
-#[cfg(feature = "lock")]
-mod lock {
+#[cfg(feature = "atomic")]
+mod atomic {
     use core::pin::pin;
-    use phylactery::lock::{Lich, Soul};
+    use phylactery::atomic::{Lich, Soul};
     use std::{sync::Mutex, thread::spawn};
 
     tests!();

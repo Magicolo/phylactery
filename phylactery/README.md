@@ -1,7 +1,9 @@
 <div align="center"> <h1> phylactery 1.0.0 </h1> </div>
 
 <p align="center">
-    <i> 
+    <i>
+Crafted through a vile ritual, a phylactery is a magical receptacle that holds a necromancer's soul, permanently binding it to the mortal world as a lich.
+<br/><br/>
 Safe and thin wrappers around lifetime extension to allow non-static values to cross static boundaries.
     </i>
 </p>
@@ -13,38 +15,21 @@ Safe and thin wrappers around lifetime extension to allow non-static values to c
 
 ---
 ### In Brief
-This library provides a way to extend the lifetime of a value beyond its original scope, allowing it to be used in `'static` contexts. It does this by splitting a pinned, owned value into two parts: a [`Soul`] and one or more [`Lich`]es.
+- A `Soul<T, B>` wraps a given value `T`. When pinned (either with `core::pin::pin!` or `Box::pin`), it can produce `Lich<dyn Trait>`es that are bound to it (where `Trait` is a trait implemented by `T`). On drop, it will guarantee that the value `T` becomes unreachable (the behavior varies based on the `B: Binding`).
+- A `Lich<T, B>` is a handle to the value inside the `Soul`. It may have any lifetime (including `'static`), thus it is allowed to cross `'static` boundaries (such as when `std::thread::spawn`ing a thread or when storing a value in a `static` variable).
 
-- The [`Soul<T, B>`] owns the value `T` and controls its lifetime. It must be pinned in memory (e.g., on the stack with `core::pin::pin!` or on the heap with `Box::pin`).
-- The [`Lich<T, B>`] is a handle to the value inside the `Soul`. It can be safely given a `'static` lifetime.
-- The [`Binding`] `B` is a trait that defines the connection between the `Soul` and its `Lich`es, managing reference counting and access control.
-
-When the `Soul` is dropped, it automatically severs the connection to all its `Lich`es, ensuring that the value can no longer be accessed. This makes it impossible to create a dangling reference.
-
-The general usage pattern of this library is:
-- Choose a `Soul` variant for your use-case (see below for the tradeoffs).
-- Create a `Soul` with your data using `Soul::new(my_data)`.
-- Pin the `Soul` to a stable memory location (e.g., `let soul = core::pin::pin!(Soul::new(my_data));`).
-- Create one or more `Lich`es from the pinned `Soul` by calling `soul.as_ref().bind()`. The `Lich` can be shrouded as a `dyn Trait` object if needed.
-- Use the `Lich` as a `'static` handle to your data.
-- When the `Soul` is dropped, all `Lich`es bound to it are automatically and safely invalidated.
-
-Different variants exist with different tradeoffs:
-- [`phylactery::cell`]:
-    - Based on `core::cell::Cell`.
-    - Does **not** allocate heap memory for the binding (but the `Soul` can be heap-allocated with `Box::pin`).
-    - If a `Lich` still exists when the `Soul` is dropped, the thread will panic.
-    - `Lich` can be cloned.
+Two `B: Binding` implementations are currently supported and offer different tradeoffs:
+- [`phylactery::cell::Cell`]:
+    - Uses a `core::cell::Cell<u32>` internally for reference counting.
     - Can **not** be sent to other threads.
-    - Can be used with `#[no_std]`.
-- [`phylactery::lock`]:
-    - Based on `std::sync::RwLock` (or a spin-lock on `no_std`).
-    - Does **not** allocate heap memory for the binding.
-    - If a `Lich` still exists when the `Soul` is dropped, the thread will block until the `Lich` is dropped (which can lead to deadlocks).
-    - `Lich` can be cloned.
+    - When the `Soul` is dropped, the thread will panic unless all `Lich`es are dropped.
+- [`phylactery::atomic::Atomic`]:
+    - Uses a `core::sync::atomic::AtomicU32` for reference counting.
     - Can be sent to other threads.
+    - When the `Soul` is dropped, the thread will block until all `Lich`es are dropped.
     
 *Since this library makes use of some `unsafe` code, all tests are run with `miri` to try to catch any unsoundness.*
+*This library supports `#[no_std]` (use `default-features = false` in your 'Cargo.toml').*
 
 ---
 ### Examples
@@ -56,10 +41,10 @@ Different variants exist with different tradeoffs:
 ///
 /// Contrary to other `scope` solutions, here, the captured reference can be
 /// returned (as a [`Soul<P>`]) while the threads continue to execute.
-#[cfg(all(feature = "lock", feature = "shroud"))]
+#[cfg(all(feature = "atomic", feature = "shroud"))]
 pub mod thread_spawn_bridge {
     use core::{num::NonZeroUsize, pin::Pin};
-    use phylactery::lock::Soul;
+    use phylactery::atomic::Soul;
     use std::thread;
 
     pub fn broadcast<F: Fn(usize) + Send + Sync>(
@@ -87,7 +72,7 @@ pub mod thread_spawn_bridge {
 }
 
 fn main() {
-    #[cfg(all(feature = "lock", feature = "shroud"))]
+    #[cfg(all(feature = "atomic", feature = "shroud"))]
     thread_spawn_bridge::broadcast(
         std::thread::available_parallelism().unwrap_or(core::num::NonZeroUsize::MIN),
         &|index| println!("{index}"),

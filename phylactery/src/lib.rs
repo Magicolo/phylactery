@@ -1,11 +1,11 @@
 #![doc = include_str!("../README.md")]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "atomic")]
+pub mod atomic;
 #[cfg(feature = "cell")]
 pub mod cell;
 pub mod lich;
-#[cfg(feature = "lock")]
-pub mod lock;
 pub mod shroud;
 pub mod soul;
 
@@ -17,7 +17,7 @@ pub mod soul;
 /// which ensures that captured lifetimes can not be accessed anymore. A wrong
 /// implementation can lead to undefined behavior.
 ///
-/// See [`Cell`](cell::Cell) and [`Lock`](lock::Lock) as implementation
+/// See [`Cell`](cell::Cell) and [`Atomic`](atomic::Atomic) as implementation
 /// examples.
 pub unsafe trait Binding {
     const NEW: Self;
@@ -133,7 +133,7 @@ mod fails {
 
     fail!(can_not_send_unsync_to_thread, {
         use core::pin::pin;
-        use phylactery::lock::Soul;
+        use phylactery::atomic::Soul;
         use std::thread::spawn;
 
         let soul = pin!(Soul::new(|| {}));

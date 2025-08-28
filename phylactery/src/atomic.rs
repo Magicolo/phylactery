@@ -9,11 +9,11 @@ use core::sync::atomic::{AtomicU32, Ordering};
 /// A [`Binding`] that uses an [`AtomicU32`] as a reference counter.
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct Lock(AtomicU32);
-pub type Lich<T> = lich::Lich<T, Lock>;
-pub type Soul<P> = soul::Soul<P, Lock>;
+pub struct Atomic(AtomicU32);
+pub type Lich<T> = lich::Lich<T, Atomic>;
+pub type Soul<P> = soul::Soul<P, Atomic>;
 
-unsafe impl Binding for Lock {
+unsafe impl Binding for Atomic {
     const NEW: Self = Self(AtomicU32::new(0));
 
     fn sever<const FORCE: bool>(&self) -> bool {
