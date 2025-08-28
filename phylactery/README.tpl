@@ -19,13 +19,15 @@ Crafted through a vile ritual, a phylactery is a magical receptacle that holds a
 - A `Lich<T, B>` is a handle to the value inside the `Soul`. It may have any lifetime (including `'static`), thus it is allowed to cross `'static` boundaries (such as when `std::thread::spawn`ing a thread or when storing a value in a `static` variable).
 
 Two `B: Binding` implementations are currently supported and offer different tradeoffs:
-- [`phylactery::cell::Cell`]:
+- `phylactery::cell::Cell`:
     - Uses a `core::cell::Cell<u32>` internally for reference counting.
     - Can **not** be sent to other threads.
+    - Create a `Soul` using `phylactery::cell::Soul::new(..)`
     - When the `Soul` is dropped, the thread will panic unless all `Lich`es are dropped.
-- [`phylactery::atomic::Atomic`]:
+- `phylactery::atomic::Atomic`:
     - Uses a `core::sync::atomic::AtomicU32` for reference counting.
     - Can be sent to other threads.
+    - Create a `Soul` using `phylactery::atomic::Soul::new(..)`
     - When the `Soul` is dropped, the thread will block until all `Lich`es are dropped.
     
 *Since this library makes use of some `unsafe` code, all tests are run with `miri` to try to catch any unsoundness.*
