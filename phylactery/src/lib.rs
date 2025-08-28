@@ -5,191 +5,96 @@
 pub mod atomic;
 #[cfg(feature = "cell")]
 pub mod cell;
-#[cfg(feature = "lock")]
-pub mod lock;
-pub mod raw;
+pub mod lich;
 pub mod shroud;
-use core::{mem::ManuallyDrop, ptr::drop_in_place};
+pub mod soul;
 
-pub trait Binding {
-    type Data<T: ?Sized>: TrySever;
-    type Life<'a>: Sever;
-
-    fn are_bound<T: ?Sized>(data: &Self::Data<T>, life: &Self::Life<'_>) -> bool;
-    fn is_life_bound(life: &Self::Life<'_>) -> bool;
-    fn is_data_bound<T: ?Sized>(data: &Self::Data<T>) -> bool;
-}
-
-/// The lifetime-bound part of a [`Lich<T, B>`] and [`Soul<'a, B>`] pair.
+/// Represents a kind of [`Binding`] for a [`Soul`](soul::Soul) and a
+/// [`Lich`](lich::Lich).
 ///
-/// A [`Soul<'a, B>`] is a RAII guard that tracks the lifetime `'a` of the
-/// original reference. When the [`Soul<'a, B>`] is dropped, it guarantees that
-/// any associated [`Lich<T, B>`] can no longer access the reference, preventing
-/// `use-after-free` errors.
+/// # Safety
+/// The implementors must implement a reference counter and the `sever` behavior
+/// which ensures that captured lifetimes can not be accessed anymore. A wrong
+/// implementation can lead to undefined behavior.
 ///
-/// The exact behavior on drop depends on the binding variant (e.g., `raw`
-/// will [`panic!`] if not redeemed, `atomic` will block, etc.).
-pub struct Soul<'a, B: Binding + ?Sized>(pub(crate) B::Life<'a>);
-
-/// The `'static` part of a [`Lich<T, B>`] and [`Soul<'a, B>`] pair.
-///
-/// A [`Lich<T, B>`] is a handle that can be safely sent across `'static`
-/// boundaries, even though it refers to a value with a shorter lifetime. It
-/// holds the type-erased reference and relies on its corresponding
-/// [`Soul<'a, B>`] to ensure it does not outlive the data it points to.
-///
-/// Accessing the underlying data is typically done via a `borrow` method, whose
-/// behavior varies depending on the binding variant.
-pub struct Lich<T: ?Sized, B: Binding + ?Sized>(pub(crate) B::Data<T>);
-/// A [`Lich<T, B>`] and [`Soul<'a, B>`] pair.
-pub type Pair<'a, T, B> = (Lich<T, B>, Soul<'a, B>);
-
-pub trait Sever {
-    fn sever(&mut self) -> bool;
-}
-
-pub trait TrySever {
-    fn try_sever(&mut self) -> Option<bool>;
-}
-
-unsafe impl<T: ?Sized, B: Binding<Data<T>: Send> + ?Sized> Send for Lich<T, B> {}
-unsafe impl<T: ?Sized, B: Binding<Data<T>: Sync> + ?Sized> Sync for Lich<T, B> {}
-unsafe impl<'a, B: Binding<Life<'a>: Send> + ?Sized> Send for Soul<'a, B> {}
-unsafe impl<'a, B: Binding<Life<'a>: Sync> + ?Sized> Sync for Soul<'a, B> {}
-
-impl<T> Sever for Option<T> {
-    fn sever(&mut self) -> bool {
-        self.take().is_some()
-    }
-}
-
-impl<T> TrySever for Option<T> {
-    fn try_sever(&mut self) -> Option<bool> {
-        Some(self.sever())
-    }
-}
-
-impl<T: ?Sized, B: Binding + ?Sized> Lich<T, B> {
-    /// Checks if the [`Lich<T, B>`] is still bound to a [`Soul<'a, B>`].
+/// See [`Cell`](cell::Cell) and [`Atomic`](atomic::Atomic) as implementation
+/// examples.
+pub unsafe trait Binding {
+    const NEW: Self;
+    /// Attempts to sever the binding between the [`Soul`](soul::Soul) and all
+    /// of its [`Lich`](lich::Lich)es. Called when the [`Soul`](soul::Soul)
+    /// is [`sever`](soul::Soul::sever)ed or when it is dropped.
+    /// - When `FORCE = true`, the severance **must** have completed when this
+    ///   call returns and no bound [`Lich`](lich::Lich) must be accessible.
+    /// - When `FORCE = false`, the severance is allowed to fail.
     ///
-    /// The connection can be broken by dropping the [`Soul<'a, B>`], or by
-    /// calling [`Soul::sever`] on it.
-    pub fn is_bound(&self) -> bool {
-        B::is_data_bound(&self.0)
-    }
-}
-
-impl<T: ?Sized, B: Binding + ?Sized> Lich<T, B> {
-    /// Attempts to sever the binding between this [`Lich<T, B>`] (and clones)
-    /// and its/their [`Soul<'a, B>`].
+    /// Returns `true` if the severance was successful.
+    fn sever<const FORCE: bool>(&self) -> bool;
+    /// Called when the last [`Lich`](lich::Lich) is dropped.
+    fn redeem(&self);
+    /// Returns the current reference count.
+    fn count(&self) -> u32;
+    /// Increments the reference count by 1. Called when a [`Lich`](lich::Lich)
+    /// is [`bind`](soul::Soul::bind)ed or when it is cloned.
     ///
-    /// Returns `Ok(true)` if the connection was severed, `Ok(false)` if it
-    /// was already severed, and `Err(self)` if the operation failed. Failure
-    /// conditions will vary based on the variant.
-    pub fn try_sever(mut self) -> Result<bool, Self> {
-        self.0.try_sever().ok_or(self)
-    }
-}
-
-impl<T: ?Sized, B: Binding<Data<T>: Sever> + ?Sized> Lich<T, B> {
-    /// Severs the binding between this [`Lich<T, B>`] (and clones) and
-    /// its/their [`Soul<'a, B>`].
+    /// Returns the old reference count (pre-increment).
+    fn increment(&self) -> u32;
+    /// Decrements the reference count by 1. Called when a [`Lich`](lich::Lich)
+    /// is [`redeem`](soul::Soul::redeem)ed or when it is dropped.
     ///
-    /// This method is only available on bindings where the [`Lich<T, B>`] can
-    /// be forcefully severed, like `cell` and `lock`.
-    ///
-    /// Returns `true` if the connection was severed, `false` if it was already
-    /// severed.
-    pub fn sever(mut self) -> bool {
-        self.0.sever()
-    }
+    /// Returns the old reference count (pre-decrement).
+    fn decrement(&self) -> u32;
 }
 
-impl<B: Binding + ?Sized> Soul<'_, B> {
-    /// Severs the binding between this [`Soul<'a, B>`] and its
-    /// [`Lich<T, B>`]es.
-    ///
-    /// This consumes the [`Soul<'a, B>`] and makes the corresponding
-    /// [`Lich<T, B>`]es unable to access the underlying data.
-    ///
-    /// Returns `true` if the connection was severed, `false` if it was already
-    /// severed.
-    pub fn sever(mut self) -> bool {
-        self.0.sever()
+static PANIC: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
+fn is_panicking() -> bool {
+    #[cfg(feature = "std")]
+    if std::thread::panicking() {
+        return true;
     }
+
+    PANIC.load(core::sync::atomic::Ordering::Relaxed)
 }
 
-impl<'a, B: Binding<Life<'a>: TrySever> + ?Sized> Soul<'a, B> {
-    /// Attempts to sever the binding between this [`Soul<'a, B>`] and its
-    /// [`Lich<T, B>`]es.
-    ///
-    /// This consumes the [`Soul<'a, B>`] and makes the corresponding
-    /// [`Lich<T, B>`]es unable to access the underlying data.
-    ///
-    /// Returns `Ok(true)` if the connection was severed, `Ok(false)` if it
-    /// was already severed, and `Err(self)` if the operation failed. Failure
-    /// conditions will vary based on the variant.
-    pub fn try_sever(mut self) -> Result<bool, Self> {
-        self.0.try_sever().ok_or(self)
+#[cfg(feature = "cell")]
+fn panic(value: u32) -> bool {
+    #[cfg(feature = "std")]
+    if std::thread::panicking() {
+        return false;
     }
-}
 
-impl<B: Binding + ?Sized> Soul<'_, B> {
-    /// Checks if the [`Soul<'a, B>`] is still bound to at least a
-    /// [`Lich<T, B>`].
-    ///
-    /// The connection can be broken by dropping the [`Soul<'a, B>`], calling
-    /// [`Soul::sever`] on it.
-    pub fn is_bound(&self) -> bool {
-        B::is_life_bound(&self.0)
+    if PANIC.swap(true, core::sync::atomic::Ordering::Relaxed) {
+        return false;
     }
-}
 
-impl<T: ?Sized, B: Binding<Data<T>: Clone> + ?Sized> Clone for Lich<T, B> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<T: ?Sized, B: Binding<Data<T>: Default> + ?Sized> Default for Lich<T, B> {
-    fn default() -> Self {
-        Self(B::Data::default())
-    }
-}
-
-impl<T: ?Sized, B: Binding + ?Sized> Drop for Lich<T, B> {
-    fn drop(&mut self) {
-        self.0.try_sever();
-    }
-}
-
-impl<B: Binding + ?Sized> Drop for Soul<'_, B> {
-    fn drop(&mut self) {
-        self.0.sever();
-    }
-}
-
-fn redeem<'a, T: ?Sized + 'a, B: Binding + ?Sized, const BOUND: bool>(
-    lich: Lich<T, B>,
-    soul: Soul<'a, B>,
-) -> Result<Option<Soul<'a, B>>, Pair<'a, T, B>> {
-    if B::are_bound(&lich.0, &soul.0) {
-        let mut lich = ManuallyDrop::new(lich);
-        unsafe { drop_in_place(&mut lich.0) };
-        if BOUND && B::is_life_bound(&soul.0) {
-            Ok(Some(soul))
-        } else {
-            let mut soul = ManuallyDrop::new(soul);
-            unsafe { drop_in_place(&mut soul.0) };
-            Ok(None)
-        }
+    if value <= 1 {
+        panic!("'{value}' `Lich<T>` has not been redeemed")
     } else {
-        Err((lich, soul))
+        panic!("'{value}' `Lich<T>`es have not been redeemed")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_panicking_is_false() {
+        assert!(!is_panicking());
+    }
+
+    #[test]
+    #[cfg(all(feature = "cell", feature = "std"))]
+    fn is_panicking_is_true() {
+        std::panic::catch_unwind(|| panic(0)).unwrap_err();
+        assert!(is_panicking());
     }
 }
 
 #[allow(dead_code)]
-mod fail {
+mod fails {
+
     macro_rules! fail {
         ($function: ident, $block: block) => {
             #[doc = concat!("```compile_fail\n", stringify!($block), "\n```")]
@@ -198,66 +103,41 @@ mod fail {
     }
 
     fail!(can_not_drop_while_soul_lives, {
-        use core::cell::RefCell;
-        use phylactery::raw::ritual;
+        use core::{cell::RefCell, pin::pin};
+        use phylactery::cell::Soul;
 
-        let value = String::new();
-        let cell = RefCell::new(value);
+        let cell = RefCell::new(String::new());
         let function = move |letter| cell.borrow_mut().push(letter);
-        let (lich, soul) = ritual::<_, dyn Fn(char)>(&function);
+        let soul = Soul::new(&function);
         drop(function);
     });
 
-    fail!(can_not_clone_lich, {
-        use phylactery::raw::ritual;
-
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-        lich.clone();
-    });
-
     fail!(can_not_clone_soul, {
-        use phylactery::raw::ritual;
+        use core::{cell::RefCell, pin::pin};
+        use phylactery::cell::Soul;
 
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn()>(&function);
-        soul.clone();
-    });
-
-    fail!(can_not_send_raw_unsync_to_thread, {
-        use phylactery::raw::ritual;
-        use std::thread::spawn;
-
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
-        spawn(move || lich);
-    });
-
-    fail!(can_not_create_default_raw_lich, {
-        use phylactery::raw::Lich;
-        Lich::<dyn Fn()>::default();
+        let cell = RefCell::new(String::new());
+        let soul = Soul::new(move |letter| cell.borrow_mut().push(letter));
+        <Soul<_> as Clone>::clone(&soul);
     });
 
     fail!(can_not_send_cell_to_thread, {
-        use phylactery::cell::ritual;
+        use core::pin::pin;
+        use phylactery::cell::Soul;
         use std::thread::spawn;
 
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn() + Send + Sync>(&function);
-        spawn(move || lich);
+        let soul = pin!(Soul::new(|| {}));
+        let lich = soul.as_ref().bind::<dyn Fn() + Send + Sync>();
+        spawn(move || lich());
     });
 
-    fail!(can_not_send_lock_unsync_to_thread, {
-        use phylactery::lock::ritual;
+    fail!(can_not_send_unsync_to_thread, {
+        use core::pin::pin;
+        use phylactery::atomic::Soul;
         use std::thread::spawn;
 
-        let function = || {};
-        let (lich, soul) = ritual::<_, dyn Fn() + Send>(&function);
-        spawn(move || lich);
-    });
-
-    fail!(can_not_create_default_atomic_lich, {
-        use phylactery::atomic::Lich;
-        Lich::<dyn Fn()>::default();
+        let soul = pin!(Soul::new(|| {}));
+        let lich = soul.as_ref().bind::<dyn Fn() + Send>();
+        spawn(move || lich());
     });
 }

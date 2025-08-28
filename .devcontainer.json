@@ -8,6 +8,7 @@
         "DOCKER_BUILDKIT": "1",
         // Rust
         "RUST_TEST_NOCAPTURE": "1",
+        "RUST_BACKTRACE": "1",
         "CARGO_TARGET_DIR": "/home/ubuntu/.rust/target"
     },
     "containerEnv": {

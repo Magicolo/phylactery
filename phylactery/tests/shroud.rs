@@ -2,6 +2,7 @@
 
 use core::{
     fmt::{Debug, Display},
+    ptr::NonNull,
     str::FromStr,
 };
 use phylactery::shroud::{Shroud, shroud};
@@ -9,7 +10,7 @@ use phylactery::shroud::{Shroud, shroud};
 #[shroud]
 pub trait Simple {}
 
-pub fn simple<S: Simple>(simple: &S) {
+pub fn simple_compiles<S: Simple>(simple: NonNull<S>) {
     <dyn Simple>::shroud(simple);
 }
 
@@ -17,7 +18,7 @@ pub fn simple<S: Simple>(simple: &S) {
 #[shroud(Self, Send, Sync, Unpin, ..)]
 pub trait Combine {}
 
-pub fn combine<T: Combine + Send + Sync + Unpin>(combine: &T) {
+pub fn combine_compiles<T: Combine + Send + Sync + Unpin>(combine: NonNull<T>) {
     <dyn Combine>::shroud(combine);
     <dyn Combine + Send>::shroud(combine);
     <dyn Combine + Sync>::shroud(combine);
@@ -26,13 +27,15 @@ pub fn combine<T: Combine + Send + Sync + Unpin>(combine: &T) {
     <dyn Combine + Sync + Unpin>::shroud(combine);
     <dyn Combine + Send + Sync + Unpin>::shroud(combine);
 
-    <dyn Combine>::shroud(combine as &dyn Combine);
-    <dyn Combine + Send>::shroud(combine as &(dyn Combine + Send));
-    <dyn Combine + Sync>::shroud(combine as &(dyn Combine + Sync));
-    <dyn Combine + Unpin>::shroud(combine as &(dyn Combine + Unpin));
-    <dyn Combine + Send + Unpin>::shroud(combine as &(dyn Combine + Send + Unpin));
-    <dyn Combine + Sync + Unpin>::shroud(combine as &(dyn Combine + Sync + Unpin));
-    <dyn Combine + Send + Sync + Unpin>::shroud(combine as &(dyn Combine + Send + Sync + Unpin));
+    <dyn Combine>::shroud(combine as NonNull<dyn Combine>);
+    <dyn Combine + Send>::shroud(combine as NonNull<dyn Combine + Send>);
+    <dyn Combine + Sync>::shroud(combine as NonNull<dyn Combine + Sync>);
+    <dyn Combine + Unpin>::shroud(combine as NonNull<dyn Combine + Unpin>);
+    <dyn Combine + Send + Unpin>::shroud(combine as NonNull<dyn Combine + Send + Unpin>);
+    <dyn Combine + Sync + Unpin>::shroud(combine as NonNull<dyn Combine + Sync + Unpin>);
+    <dyn Combine + Send + Sync + Unpin>::shroud(
+        combine as NonNull<dyn Combine + Send + Sync + Unpin>,
+    );
 }
 
 #[shroud]
@@ -47,14 +50,14 @@ where
     type A;
 }
 
-pub fn complex<
+pub fn complex_compiles<
     'a,
     T: Debug,
     U: FromStr + 'a,
     const N: usize,
     C: Complex<'a, T, U, N> + Send + Sync,
 >(
-    complex: &C,
+    complex: NonNull<C>,
 ) where
     for<'b> &'b T: Display,
 {

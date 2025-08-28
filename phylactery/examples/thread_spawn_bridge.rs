@@ -1,47 +1,39 @@
 /// Trivially reimplement [`thread::scope`] in a more powerful way.
 ///
 /// Contrary to other `scope` solutions, here, the captured reference can be
-/// returned (as a [`Soul<'a>`]) while the threads continue to execute.
-#[cfg(feature = "lock")]
+/// returned (as a [`Soul<P>`]) while the threads continue to execute.
+#[cfg(all(feature = "atomic", feature = "shroud"))]
 pub mod thread_spawn_bridge {
-    use core::num::NonZeroUsize;
-    use phylactery::lock::{Soul, ritual};
+    use core::{num::NonZeroUsize, pin::Pin};
+    use phylactery::atomic::Soul;
     use std::thread;
 
     pub fn broadcast<F: Fn(usize) + Send + Sync>(
         parallelism: NonZeroUsize,
-        function: &F,
-    ) -> Soul<'_> {
-        let (lich, soul) = ritual::<_, dyn Fn(usize) + Send + Sync>(function);
+        function: F,
+    ) -> Pin<Box<Soul<F>>> {
+        // Pin the `Soul` to the heap to be able to return it.
+        let soul = Box::pin(Soul::new(function));
         // Spawn a bunch of threads that will all call `F`.
         for index in 0..parallelism.get() {
-            let lich = lich.clone();
+            // `Soul::bind` requires a pinning.
+            let lich = soul.as_ref().bind::<dyn Fn(usize) + Send + Sync>();
             // The non-static function `F` crosses a `'static` boundary protected by the
-            // `Lich`.
-            thread::spawn(move || {
-                // Borrowing may fail if the `Soul<'a>` has been dropped/severed.
-                if let Some(guard) = lich.borrow() {
-                    // Call the non-static function.
-                    guard(index);
-                }
-                // Allow the `Guard` and `Lich` to drop such that the `Soul<'a>`
-                // can complete its `Soul::sever`.
-            });
+            // `Lich` and is called on another thread. `Send/Sync` requirements still apply.
+            thread::spawn(move || lich(index));
         }
 
-        // The `Soul<'a>` continues to track the captured `'a` reference and will
-        // guarantee that it becomes inaccessible when it itself drops.
+        // The `Soul` continues to track the captured `F` and will guarantee that it
+        // becomes inaccessible when it itself drops.
         //
-        // Note that this may block this thread if there still are active borrows at the
-        // time of drop.
-        //
-        // Note that the `Lich`es do not need be `redeem`ed.
+        // If a `Lich` bound to this `Soul` still lives at the time of drop,
+        // `<Soul as Drop>::drop` will block until all `Lich`es are dropped.
         soul
     }
 }
 
 fn main() {
-    #[cfg(feature = "lock")]
+    #[cfg(all(feature = "atomic", feature = "shroud"))]
     thread_spawn_bridge::broadcast(
         std::thread::available_parallelism().unwrap_or(core::num::NonZeroUsize::MIN),
         &|index| println!("{index}"),

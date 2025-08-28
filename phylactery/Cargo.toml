@@ -1,28 +1,28 @@
 [package]
 name = "phylactery"
-version = "0.5.3"
+version = "1.0.0"
 edition = "2021"
 authors = ["Magicolo <magicololand@gmail.com>"]
 readme = "README.md"
-documentation = "https://docs.rs/phylactery/latest/checkito/"
+documentation = "https://docs.rs/phylactery/latest/phylactery/"
 description = "Safe and thin wrappers around lifetime extension to allow non-static values to cross static boundaries."
 license = "MIT"
 repository = "https://github.com/Magicolo/phylactery"
-keywords = ["unsafe", "lifetime", "scope", "extension", "static"]
+keywords = ["unsafe", "lifetime", "extension", "static", "pin"]
 categories = ["concurrency", "no-std", "data-structures", "memory-management"]
-rust-version = "1.79"
+rust-version = "1.75"
 
 [badges]
 github = { repository = "Magicolo/phylactery", workflow = "test" }
 
 [features]
-default = ["cell", "lock", "atomic", "shroud"]
+default = ["std", "cell", "atomic", "shroud"]
 std = []
-cell = ["std"]
-lock = ["std"]
+cell = []
 atomic = ["atomic-wait"]
 shroud = ["phylactery_macro"]
 
 [dependencies]
-phylactery_macro = { version = "0.2.0", path = "../phylactery_macro", default-features = false, optional = true }
 atomic-wait = { version = "1.1.0", optional = true, default-features = false }
+phylactery_macro = { version = "0.2.0", path = "../phylactery_macro", default-features = false, optional = true }
+rustversion = "1.0.22"
