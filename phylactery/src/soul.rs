@@ -57,31 +57,6 @@ impl<T, B: Binding> Soul<T, B> {
         }
     }
 
-    pub fn sever<S: Deref<Target = Self>>(this: Pin<S>) -> S {
-        this.bind.sever::<true>();
-        // Safety: all bindings have been severed, guaranteed by `B::sever`.
-        unsafe { Self::unpin(this) }
-    }
-
-    pub fn try_sever<S: Deref<Target = Self>>(this: Pin<S>) -> Result<S, Pin<S>> {
-        if this.bind.sever::<false>() {
-            // Safety: all bindings have been severed, guaranteed by `B::sever`.
-            Ok(unsafe { Self::unpin(this) })
-        } else {
-            Err(this)
-        }
-    }
-
-    /// # Safety
-    ///
-    /// It **must** be the case the all bindings to [`Lich`]es have been severed
-    /// before calling this function.
-    unsafe fn unpin<S: Deref<Target = Self>>(this: Pin<S>) -> S {
-        debug_assert_eq!(this.bindings(), 0);
-        // Safety: no `Lich`es are bound, the `Soul` can be unpinned.
-        unsafe { Pin::into_inner_unchecked(this) }
-    }
-
     pub fn consume(self) -> T {
         // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
         // this unpinned `Soul`.
@@ -127,6 +102,31 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
         } else {
             Err(lich)
         }
+    }
+
+    pub fn sever<S: Deref<Target = Self>>(this: Pin<S>) -> S {
+        this.bind.sever::<true>();
+        // Safety: all bindings have been severed, guaranteed by `B::sever`.
+        unsafe { Self::unpin(this) }
+    }
+
+    pub fn try_sever<S: Deref<Target = Self>>(this: Pin<S>) -> Result<S, Pin<S>> {
+        if this.bind.sever::<false>() {
+            // Safety: all bindings have been severed, guaranteed by `B::sever`.
+            Ok(unsafe { Self::unpin(this) })
+        } else {
+            Err(this)
+        }
+    }
+
+    /// # Safety
+    ///
+    /// It **must** be the case the all bindings to [`Lich`]es have been severed
+    /// before calling this function.
+    unsafe fn unpin<S: Deref<Target = Self>>(this: Pin<S>) -> S {
+        debug_assert_eq!(this.bindings(), 0);
+        // Safety: no `Lich`es are bound, the `Soul` can be unpinned.
+        unsafe { Pin::into_inner_unchecked(this) }
     }
 
     fn value_ptr(self: Pin<&Self>) -> NonNull<T> {
