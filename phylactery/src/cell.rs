@@ -3,7 +3,7 @@
 //! This variant can not be sent to other threads. See the
 //! [crate-level documentation](crate) for more details.
 
-use crate::{Binding, lich, panic, soul};
+use crate::{Binding, lich, soul};
 
 /// A [`Binding`] that uses a [`Cell<u32>`](core::cell::Cell<u32>) as a
 /// reference counter.
@@ -49,5 +49,27 @@ unsafe impl Binding for Cell {
         debug_assert!(value > 0);
         self.0.set(value - 1);
         value
+    }
+
+    fn bail() -> bool {
+        panicking(false)
+    }
+}
+
+fn panicking(_swap: bool) -> bool {
+    #[cfg(feature = "std")]
+    return std::thread::panicking();
+    #[cfg(not(feature = "std"))]
+    false
+}
+
+#[cfg(feature = "cell")]
+fn panic(value: u32) -> bool {
+    if panicking(true) {
+        false
+    } else if value <= 1 {
+        panic!("'{value}' `Lich<T>` has not been redeemed")
+    } else {
+        panic!("'{value}' `Lich<T>`es have not been redeemed")
     }
 }

@@ -1,4 +1,4 @@
-use crate::{Binding, is_panicking};
+use crate::Binding;
 use core::{borrow::Borrow, ops::Deref, ptr::NonNull};
 
 /// A `'static` pointer to a value owned by a [`Soul`](crate::soul::Soul).
@@ -73,22 +73,6 @@ impl<T: ?Sized, B: Binding + ?Sized> Clone for Lich<T, B> {
     }
 }
 
-impl<T: ?Sized, B: Binding + ?Sized> Drop for Lich<T, B> {
-    fn drop(&mut self) {
-        if is_panicking() {
-            // Do not attempt to read the `bind` pointer if the thread is panicking.
-            return;
-        }
-
-        let bind = self.bind_ref();
-        match bind.decrement() {
-            0 | u32::MAX => unreachable!(),
-            1 => bind.redeem(),
-            _ => {}
-        }
-    }
-}
-
 impl<T: ?Sized, B: Binding + ?Sized> Borrow<T> for Lich<T, B> {
     fn borrow(&self) -> &T {
         self.data_ref()
@@ -106,5 +90,20 @@ impl<T: ?Sized, B: Binding + ?Sized> Deref for Lich<T, B> {
 impl<T: ?Sized, B: Binding + ?Sized> AsRef<T> for Lich<T, B> {
     fn as_ref(&self) -> &T {
         self.data_ref()
+    }
+}
+
+impl<T: ?Sized, B: Binding + ?Sized> Drop for Lich<T, B> {
+    fn drop(&mut self) {
+        if B::bail() {
+            return;
+        }
+
+        let bind = self.bind_ref();
+        match bind.decrement() {
+            0 | u32::MAX => unreachable!(),
+            1 => bind.redeem(),
+            _ => {}
+        }
     }
 }

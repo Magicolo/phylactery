@@ -1,4 +1,4 @@
-#![cfg(all(feature = "shroud", feature = "std"))]
+#![cfg(feature = "shroud")]
 
 #[cfg(any(feature = "cell", feature = "atomic"))]
 macro_rules! tests {
@@ -141,7 +141,7 @@ macro_rules! tests {
 mod cell {
     use core::{cell::RefCell, pin::pin};
     use phylactery::cell::{Lich, Soul};
-    use std::{rc::Rc, sync::Arc};
+    use std::{rc::Rc, sync::Arc, thread::spawn};
 
     tests!();
 
@@ -163,6 +163,31 @@ mod cell {
         let lich = soul.as_ref().bind::<dyn Fn()>();
         drop(soul);
         drop(lich);
+    }
+
+    #[test]
+    #[should_panic]
+    fn panics_on_different_threads() {
+        let soul1 = Box::pin(Soul::new(|| {}));
+        let soul2 = Box::pin(Soul::new(|| {}));
+        let lich1 = soul1.as_ref().bind::<dyn Fn()>();
+        let lich2 = soul2.as_ref().bind::<dyn Fn()>();
+        spawn(|| {
+            let soul3 = Box::pin(Soul::new(|| {}));
+            let soul4 = Box::pin(Soul::new(|| {}));
+            let lich3 = soul3.as_ref().bind::<dyn Fn()>();
+            let lich4 = soul4.as_ref().bind::<dyn Fn()>();
+            drop(soul3);
+            drop(soul4);
+            lich3();
+            lich4();
+        })
+        .join()
+        .unwrap_err();
+        drop(soul1);
+        drop(soul2);
+        lich1();
+        lich2();
     }
 }
 
@@ -198,7 +223,7 @@ mod atomic {
 
     #[test]
     #[should_panic]
-    fn unwinds_on_different_thread() {
+    fn unwinds_on_different_threads() {
         let soul = Box::pin(Soul::new(|| {}));
         let lich1 = soul.as_ref().bind::<dyn Fn() + Sync>();
         let _lich2 = soul.as_ref().bind::<dyn Fn() + Sync>();

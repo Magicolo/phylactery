@@ -44,52 +44,10 @@ pub unsafe trait Binding {
     ///
     /// Returns the old reference count (pre-decrement).
     fn decrement(&self) -> u32;
-}
-
-static PANIC: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
-
-fn is_panicking() -> bool {
-    #[cfg(feature = "std")]
-    if std::thread::panicking() {
-        return true;
-    }
-
-    PANIC.load(core::sync::atomic::Ordering::Relaxed)
-}
-
-#[cfg(feature = "cell")]
-fn panic(value: u32) -> bool {
-    #[cfg(feature = "std")]
-    if std::thread::panicking() {
-        return false;
-    }
-
-    if PANIC.swap(true, core::sync::atomic::Ordering::Relaxed) {
-        return false;
-    }
-
-    if value <= 1 {
-        panic!("'{value}' `Lich<T>` has not been redeemed")
-    } else {
-        panic!("'{value}' `Lich<T>`es have not been redeemed")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn is_panicking_is_false() {
-        assert!(!is_panicking());
-    }
-
-    #[test]
-    #[cfg(all(feature = "cell", feature = "std"))]
-    fn is_panicking_is_true() {
-        std::panic::catch_unwind(|| panic(0)).unwrap_err();
-        assert!(is_panicking());
-    }
+    /// Returns `true` if a [`Lich`] can not be dropped, say because its
+    /// pointers have been invalidated. This may leave the reference counter
+    /// to a non-zero value and must be handled accordingly.
+    fn bail() -> bool;
 }
 
 #[allow(dead_code)]

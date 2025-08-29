@@ -51,4 +51,8 @@ unsafe impl Binding for Atomic {
         debug_assert!(value > 0);
         value
     }
+
+    fn bail() -> bool {
+        false
+    }
 }

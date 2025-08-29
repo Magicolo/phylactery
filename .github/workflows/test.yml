@@ -11,7 +11,7 @@ jobs:
       image: ghcr.io/magicolo/rust
     steps:
     - uses: actions/checkout@v5
-    - run: cargo hack nextest run --release --all-targets --verbose --feature-powerset
+    - run: cargo hack nextest run --release --all-targets --verbose --feature-powerset --no-tests pass
     - run: cargo hack test --doc --release --all-features --verbose
   miri:
     runs-on: ubuntu-latest
