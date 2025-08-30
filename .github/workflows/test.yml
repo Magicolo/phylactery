@@ -19,7 +19,7 @@ jobs:
       image: ghcr.io/magicolo/rust
     steps:
     - uses: actions/checkout@v5
-    - run: cargo +nightly miri nextest run --all-targets --all-features --verbose
+    - run: cargo +nightly hack miri nextest run --all-targets --verbose --feature-powerset --no-tests pass
   clippy:
     runs-on: ubuntu-latest
     container: 
