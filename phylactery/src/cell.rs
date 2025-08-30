@@ -3,7 +3,7 @@
 //! This variant can not be sent to other threads. See the
 //! [crate-level documentation](crate) for more details.
 
-use crate::{lich, soul, Binding};
+use crate::{Binding, lich, soul};
 
 /// A [`Binding`] that uses a [`Cell<u32>`](core::cell::Cell<u32>) as a
 /// reference counter.
@@ -23,7 +23,7 @@ unsafe impl Binding for Cell {
                 true
             }
             u32::MAX => true,
-            value if FORCE => panic(self, value),
+            value if FORCE => bind::panic(self, value),
             _ => false,
         }
     }
@@ -51,61 +51,88 @@ unsafe impl Binding for Cell {
         value
     }
 
-    fn bail(_this: *const Self) -> bool {
-        #[cfg(feature = "std")]
-        return std::thread::panicking();
-        #[cfg(not(feature = "std"))]
-        {
-            use core::sync::atomic::Ordering;
-            let address = _this.cast::<()>() as usize;
-            match PANIC.load(Ordering::Relaxed) {
-                0 => false,
-                panic if panic == address => {
-                    if COUNT.fetch_sub(1, Ordering::Relaxed) == 1 {
-                        match PANIC.compare_exchange(
-                            address,
-                            0,
-                            Ordering::Relaxed,
-                            Ordering::Relaxed,
-                        ) {
-                            Ok(_) => true,
-                            Err(_) => panic_multiple_unwind(),
-                        }
-                    } else {
-                        true
-                    }
-                }
-                _ => panic_multiple_unwind(),
-            }
+    fn bail(this: *const Self, drop: bool) -> bool {
+        bind::bail(this, drop)
+    }
+}
+
+#[cfg(feature = "std")]
+mod bind {
+    use super::*;
+    use core::cell::RefCell;
+    use std::collections::BTreeMap;
+
+    thread_local! {
+        static PANIC: RefCell<BTreeMap<usize, u32>> = const { RefCell::new(BTreeMap::new()) };
+    }
+
+    pub fn panic<T: ?Sized>(this: *const T, value: u32) -> bool {
+        let address = this.cast::<()>() as usize;
+        match PANIC.with_borrow_mut(|map| map.insert(address, value)) {
+            // This `Soul` is already unwinding. This can happen with a call to `Soul::sever`.
+            Some(_) => false,
+            None => panic_lich_not_redeemed(value),
         }
+    }
+
+    pub fn bail<T: ?Sized>(this: *const T, drop: bool) -> bool {
+        let address = this.cast::<()>() as usize;
+        PANIC.with_borrow_mut(|map| match map.get_mut(&address) {
+            Some(0) => unreachable!("invalid state"),
+            Some(1) if drop => {
+                map.remove(&address);
+                true
+            }
+            Some(count) => {
+                *count -= 1;
+                true
+            }
+            None => false,
+        })
     }
 }
 
 #[cfg(not(feature = "std"))]
-static PANIC: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
-#[cfg(not(feature = "std"))]
-static COUNT: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
+mod bind {
+    use super::*;
+    use core::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
-#[cfg(feature = "cell")]
-fn panic<T: ?Sized>(_pointer: *const T, value: u32) -> bool {
-    #[cfg(feature = "std")]
-    if std::thread::panicking() {
-        false
-    } else {
-        panic_lich_not_redeemed(value)
-    }
-    #[cfg(not(feature = "std"))]
-    {
-        use core::sync::atomic::Ordering;
-        let address = _pointer.cast::<()>() as usize;
+    static PANIC: AtomicUsize = AtomicUsize::new(0);
+    static COUNT: AtomicU32 = AtomicU32::new(0);
+
+    pub fn panic<T: ?Sized>(this: *const T, value: u32) -> bool {
+        let address = this.cast::<()>() as usize;
         match PANIC.compare_exchange(0, address, Ordering::Relaxed, Ordering::Relaxed) {
             Ok(_) => match COUNT.compare_exchange(0, value, Ordering::Relaxed, Ordering::Relaxed) {
                 Ok(_) => panic_lich_not_redeemed(value),
                 Err(_) => panic_multiple_unwind(),
             },
-            Err(panic) if panic == address => false,
+            Err(panic) if bind == address => false,
             Err(_) => panic_multiple_unwind(),
         }
+    }
+
+    pub fn bail<T: ?Sized>(this: *const T, drop: bool) -> bool {
+        let address = this.cast::<()>() as usize;
+        match PANIC.load(Ordering::Relaxed) {
+            0 => false,
+            panic if drop && bind == address => {
+                if COUNT.fetch_sub(1, Ordering::Relaxed) == 1 {
+                    match PANIC.compare_exchange(address, 0, Ordering::Relaxed, Ordering::Relaxed) {
+                        Ok(_) => true,
+                        Err(_) => panic_multiple_unwind(),
+                    }
+                } else {
+                    true
+                }
+            }
+            panic if bind == address => true,
+            _ => panic_multiple_unwind(),
+        }
+    }
+
+    fn panic_multiple_unwind() -> ! {
+        panic!("multiple unwinding is not supported without the `std` feature")
     }
 }
 
@@ -115,9 +142,4 @@ fn panic_lich_not_redeemed(value: u32) -> ! {
     } else {
         panic!("'{value}' `Lich`es have not been redeemed")
     }
-}
-
-#[cfg(not(feature = "std"))]
-fn panic_multiple_unwind() -> ! {
-    panic!("multiple unwinding is not supported without the `std` feature")
 }

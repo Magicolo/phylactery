@@ -52,7 +52,7 @@ unsafe impl Binding for Atomic {
         value
     }
 
-    fn bail(_: *const Self) -> bool {
+    fn bail(_: *const Self, _: bool) -> bool {
         false
     }
 }

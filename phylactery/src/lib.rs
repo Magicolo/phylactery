@@ -47,7 +47,7 @@ pub unsafe trait Binding {
     /// Returns `true` if the `*const Self` pointer has become invalid. An
     /// implementation that *can* return `true` may leave the reference
     /// counter to a non-zero value and must be handled accordingly.
-    fn bail(this: *const Self) -> bool;
+    fn bail(this: *const Self, drop: bool) -> bool;
 }
 
 #[allow(dead_code)]

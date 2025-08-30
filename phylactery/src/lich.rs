@@ -47,25 +47,30 @@ impl<T: ?Sized, B: Binding + ?Sized> Lich<T, B> {
     /// Returns the number of `Lich`es that are currently bound to the
     /// [`Soul`](crate::soul::Soul).
     pub fn bindings(&self) -> usize {
-        self.bind_ref().count() as _
+        self.bind_ref(false).unwrap().count() as _
     }
 
-    const fn bind_ref(&self) -> &B {
-        // Safety: the pointers are valid for the lifetime of `self`; guaranteed by the
-        // `B: Binding`'s reference count.
-        unsafe { self.bind.as_ref() }
+    fn bind_ref(&self, drop: bool) -> Result<&B, &'static str> {
+        if B::bail(self.bind.as_ptr(), drop) {
+            Err("accessing `Lich` while its `Soul` is unwinding")
+        } else {
+            // Safety: the pointers are valid for the lifetime of `self`; guaranteed by the
+            // `B: Binding`'s reference count.
+            Ok(unsafe { self.bind.as_ref() })
+        }
     }
 
-    const fn data_ref(&self) -> &T {
+    fn data_ref(&self) -> Result<&T, &'static str> {
+        self.bind_ref(false)?;
         // Safety: the pointers are valid for the lifetime of `self`; guaranteed by the
         // `B: Binding`'s reference count.
-        unsafe { self.value.as_ref() }
+        Ok(unsafe { self.value.as_ref() })
     }
 }
 
 impl<T: ?Sized, B: Binding + ?Sized> Clone for Lich<T, B> {
     fn clone(&self) -> Self {
-        self.bind_ref().increment();
+        self.bind_ref(false).unwrap().increment();
         Self {
             value: self.value,
             bind: self.bind,
@@ -75,7 +80,7 @@ impl<T: ?Sized, B: Binding + ?Sized> Clone for Lich<T, B> {
 
 impl<T: ?Sized, B: Binding + ?Sized> Borrow<T> for Lich<T, B> {
     fn borrow(&self) -> &T {
-        self.data_ref()
+        self.data_ref().unwrap()
     }
 }
 
@@ -83,27 +88,24 @@ impl<T: ?Sized, B: Binding + ?Sized> Deref for Lich<T, B> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.data_ref()
+        self.data_ref().unwrap()
     }
 }
 
 impl<T: ?Sized, B: Binding + ?Sized> AsRef<T> for Lich<T, B> {
     fn as_ref(&self) -> &T {
-        self.data_ref()
+        self.data_ref().unwrap()
     }
 }
 
 impl<T: ?Sized, B: Binding + ?Sized> Drop for Lich<T, B> {
     fn drop(&mut self) {
-        if B::bail(self.bind.as_ptr()) {
-            return;
-        }
-
-        let bind = self.bind_ref();
-        match bind.decrement() {
-            0 | u32::MAX => unreachable!(),
-            1 => bind.redeem(),
-            _ => {}
+        if let Ok(bind) = self.bind_ref(true) {
+            match bind.decrement() {
+                0 | u32::MAX => unreachable!(),
+                1 => bind.redeem(),
+                _ => {}
+            }
         }
     }
 }

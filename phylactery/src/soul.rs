@@ -1,11 +1,11 @@
-use crate::{lich::Lich, shroud::Shroud, Binding};
+use crate::{Binding, lich::Lich, shroud::Shroud};
 use core::{
     borrow::Borrow,
     marker::PhantomPinned,
-    mem::{forget, ManuallyDrop},
+    mem::{ManuallyDrop, forget},
     ops::Deref,
     pin::Pin,
-    ptr::{self, drop_in_place, read, NonNull},
+    ptr::{self, NonNull, drop_in_place, read},
 };
 
 /// The owner of a value whose lifetime is dynamically extended.
@@ -109,9 +109,12 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
     /// Severs all bindings to [`Lich`]es from this [`Soul`], returning the
     /// unpinned [`Soul`].
     pub fn sever<S: Deref<Target = Self>>(this: Pin<S>) -> S {
-        this.bind.sever::<true>();
-        // Safety: all bindings have been severed, guaranteed by `B::sever`.
-        unsafe { Self::unpin(this) }
+        if this.bind.sever::<true>() {
+            // Safety: all bindings have been severed, guaranteed by `B::sever`.
+            unsafe { Self::unpin(this) }
+        } else {
+            panic!("sever failed possibly due to unwinding")
+        }
     }
 
     /// Attempts to sever all bindings to [`Lich`]es from this [`Soul`],
