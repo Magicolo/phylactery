@@ -23,7 +23,7 @@ unsafe impl Binding for Cell {
                 true
             }
             u32::MAX => true,
-            value if FORCE => bind::panic(self, value),
+            value if FORCE => bind::sever(self, value),
             _ => false,
         }
     }
@@ -66,7 +66,7 @@ mod bind {
         static PANIC: RefCell<BTreeMap<usize, u32>> = const { RefCell::new(BTreeMap::new()) };
     }
 
-    pub fn panic<T: ?Sized>(this: *const T, value: u32) -> bool {
+    pub fn sever<T: ?Sized>(this: *const T, value: u32) -> bool {
         let address = this.cast::<()>() as usize;
         match PANIC.with_borrow_mut(|map| map.insert(address, value)) {
             // This `Soul` is already unwinding. This can happen with a call to `Soul::sever`.
@@ -100,14 +100,14 @@ mod bind {
     static PANIC: AtomicUsize = AtomicUsize::new(0);
     static COUNT: AtomicU32 = AtomicU32::new(0);
 
-    pub fn panic<T: ?Sized>(this: *const T, value: u32) -> bool {
+    pub fn sever<T: ?Sized>(this: *const T, value: u32) -> bool {
         let address = this.cast::<()>() as usize;
         match PANIC.compare_exchange(0, address, Ordering::Relaxed, Ordering::Relaxed) {
             Ok(_) => match COUNT.compare_exchange(0, value, Ordering::Relaxed, Ordering::Relaxed) {
                 Ok(_) => panic_lich_not_redeemed(value),
                 Err(_) => panic_multiple_unwind(),
             },
-            Err(panic) if bind == address => false,
+            Err(panic) if panic == address => false,
             Err(_) => panic_multiple_unwind(),
         }
     }
@@ -116,7 +116,7 @@ mod bind {
         let address = this.cast::<()>() as usize;
         match PANIC.load(Ordering::Relaxed) {
             0 => false,
-            panic if drop && bind == address => {
+            panic if drop && panic == address => {
                 if COUNT.fetch_sub(1, Ordering::Relaxed) == 1 {
                     match PANIC.compare_exchange(address, 0, Ordering::Relaxed, Ordering::Relaxed) {
                         Ok(_) => true,
@@ -126,7 +126,7 @@ mod bind {
                     true
                 }
             }
-            panic if bind == address => true,
+            panic if panic == address => true,
             _ => panic_multiple_unwind(),
         }
     }
