@@ -84,10 +84,11 @@ mod bind {
                 map.remove(&address);
                 true
             }
-            Some(count) => {
+            Some(count) if drop => {
                 *count -= 1;
                 true
             }
+            Some(_) => true,
             None => false,
         })
     }
