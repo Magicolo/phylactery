@@ -1,11 +1,11 @@
-use crate::{Binding, lich::Lich, shroud::Shroud};
+use crate::{lich::Lich, shroud::Shroud, Binding};
 use core::{
     borrow::Borrow,
     marker::PhantomPinned,
-    mem::{ManuallyDrop, forget},
+    mem::{forget, ManuallyDrop},
     ops::Deref,
     pin::Pin,
-    ptr::{self, NonNull, drop_in_place, read},
+    ptr::{self, drop_in_place, read, NonNull},
 };
 
 /// The owner of a value whose lifetime is dynamically extended.

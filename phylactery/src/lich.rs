@@ -95,7 +95,7 @@ impl<T: ?Sized, B: Binding + ?Sized> AsRef<T> for Lich<T, B> {
 
 impl<T: ?Sized, B: Binding + ?Sized> Drop for Lich<T, B> {
     fn drop(&mut self) {
-        if B::bail() {
+        if B::bail(self.bind.as_ptr()) {
             return;
         }
 

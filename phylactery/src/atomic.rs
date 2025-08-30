@@ -3,7 +3,7 @@
 //! This variant can be sent to other threads. See the
 //! [crate-level documentation](crate) for more details.
 
-use crate::{Binding, lich, soul};
+use crate::{lich, soul, Binding};
 use core::sync::atomic::{AtomicU32, Ordering};
 
 /// A [`Binding`] that uses an [`AtomicU32`] as a reference counter.
@@ -52,7 +52,7 @@ unsafe impl Binding for Atomic {
         value
     }
 
-    fn bail() -> bool {
+    fn bail(_: *const Self) -> bool {
         false
     }
 }

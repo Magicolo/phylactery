@@ -44,15 +44,14 @@ pub unsafe trait Binding {
     ///
     /// Returns the old reference count (pre-decrement).
     fn decrement(&self) -> u32;
-    /// Returns `true` if a [`Lich`] can not be dropped, say because its
-    /// pointers have been invalidated. This may leave the reference counter
-    /// to a non-zero value and must be handled accordingly.
-    fn bail() -> bool;
+    /// Returns `true` if the `*const Self` pointer has become invalid. An
+    /// implementation that *can* return `true` may leave the reference
+    /// counter to a non-zero value and must be handled accordingly.
+    fn bail(this: *const Self) -> bool;
 }
 
 #[allow(dead_code)]
 mod fails {
-
     macro_rules! fail {
         ($function: ident, $block: block) => {
             #[doc = concat!("```compile_fail\n", stringify!($block), "\n```")]

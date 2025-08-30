@@ -169,25 +169,17 @@ mod cell {
     #[should_panic]
     fn panics_on_different_threads() {
         let soul1 = Box::pin(Soul::new(|| {}));
-        let soul2 = Box::pin(Soul::new(|| {}));
         let lich1 = soul1.as_ref().bind::<dyn Fn()>();
-        let lich2 = soul2.as_ref().bind::<dyn Fn()>();
         spawn(|| {
-            let soul3 = Box::pin(Soul::new(|| {}));
-            let soul4 = Box::pin(Soul::new(|| {}));
-            let lich3 = soul3.as_ref().bind::<dyn Fn()>();
-            let lich4 = soul4.as_ref().bind::<dyn Fn()>();
-            drop(soul3);
-            drop(soul4);
-            lich3();
-            lich4();
+            let soul2 = Box::pin(Soul::new(|| {}));
+            let lich2 = soul2.as_ref().bind::<dyn Fn()>();
+            drop(soul2);
+            lich2();
         })
         .join()
         .unwrap_err();
         drop(soul1);
-        drop(soul2);
         lich1();
-        lich2();
     }
 }
 
