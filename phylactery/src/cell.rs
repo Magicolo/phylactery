@@ -59,38 +59,55 @@ unsafe impl Binding for Cell {
 #[cfg(feature = "std")]
 mod bind {
     use super::*;
-    use core::cell::RefCell;
-    use std::collections::BTreeMap;
+    use core::cell::{Cell, RefCell};
+    use std::collections::{BTreeMap, btree_map::Entry};
 
     thread_local! {
         static PANIC: RefCell<BTreeMap<usize, u32>> = const { RefCell::new(BTreeMap::new()) };
+        static COUNT: Cell<usize> = const { Cell::new(0) };
     }
 
     pub fn sever<T: ?Sized>(this: *const T, value: u32) -> bool {
         debug_assert!(value > 0);
         let address = this.cast::<()>() as usize;
-        match PANIC.with_borrow_mut(|map| map.insert(address, value)) {
+        match PANIC.with_borrow_mut(|map: &mut BTreeMap<usize, u32>| map.insert(address, value)) {
             // This `Soul` is already unwinding. This can happen with a call to `Soul::sever`.
             Some(_) => false,
-            None => panic_lich_not_redeemed(value),
+            None => {
+                COUNT.set(COUNT.get() + 1);
+                panic_lich_not_redeemed(value);
+            }
         }
     }
 
     pub fn bail<T: ?Sized>(this: *const T, drop: bool) -> bool {
-        let address = this.cast::<()>() as usize;
-        PANIC.with_borrow_mut(|map| match map.get_mut(&address) {
-            Some(0) => unreachable!("invalid count"),
-            Some(1) if drop => {
-                map.remove(&address);
-                true
+        if COUNT.get() > 0 {
+            let address = this.cast::<()>() as usize;
+            let bail = PANIC.with_borrow_mut(|map| match map.entry(address) {
+                Entry::Occupied(mut entry) => match entry.get_mut() {
+                    0 => unreachable!("invalid count"),
+                    1 if drop => {
+                        entry.remove();
+                        None
+                    }
+                    count if drop => {
+                        *count -= 1;
+                        Some(true)
+                    }
+                    _ => Some(true),
+                },
+                Entry::Vacant(_) => Some(false),
+            });
+            match bail {
+                Some(bail) => bail,
+                None => {
+                    COUNT.set(COUNT.get() - 1);
+                    true
+                }
             }
-            Some(count) if drop => {
-                *count -= 1;
-                true
-            }
-            Some(_) => true,
-            None => false,
-        })
+        } else {
+            false
+        }
     }
 }
 
