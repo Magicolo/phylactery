@@ -20,7 +20,7 @@ pub use lich::Lich;
 ///     fmt::{Debug, Display},
 ///     str::FromStr,
 /// };
-/// use phylactery::shroud::shroud;
+/// use phylactery::shroud;
 ///
 /// // Generates `impl<T: Simple> Shroud<T> for dyn Simple`.
 /// #[shroud]

@@ -18,7 +18,7 @@ Safe and thin wrappers around lifetime extension to allow non-static values to c
 - Wrap a value `T` with `Soul<T>::new(value)`.
 - Pin the `Soul` with `core::pin::pin!` or `Box/Arc/Rc::pin`.
 - Bind `Lich<dyn Trait>` to the `Soul` with `soul.bind::<dyn Trait>()` (where `Trait` is a trait implemented by `T`).
-- Use the `Lich` in a lifetime-extended context (such as crossing a `std::thread::spawn` `'static` boundary or storing in a `static` variable).
+- Use the `Lich` in a lifetime-extended context (such as crossing a `std::thread::spawn` `'static` boundary or storing it in a `static` variable).
 - Make sure to drop all `Lich`es before dropping the `Soul`.
 - On drop, the `Soul` will block the thread until all `Lich`es are dropped, potentially creating a deadlock condition (in the name of memory safety).
 

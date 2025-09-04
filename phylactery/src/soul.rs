@@ -39,7 +39,7 @@ use core::{
 ///
 /// The [`Drop`] implementation of [`Soul`] is its core safety feature. If a
 /// [`Soul`] is dropped while any of its [`Lich`]es are still alive, the drop
-/// implementation will either block the current thread until all [`Lich`]es are
+/// implementation will block the current thread until all [`Lich`]es are
 /// dropped. This behavior guarantees that no [`Lich`] can ever outlive the data
 /// it points to.
 #[derive(Debug)]
@@ -58,9 +58,10 @@ impl<T> Soul<T> {
         }
     }
 
+    /// Consumes the [`Soul`] and returns the owned value.
     pub fn consume(self) -> T {
         // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
-        // this unpinned `Soul`.
+        // the fact that this `Soul` is unpinned.
         let mut soul = ManuallyDrop::new(self);
         unsafe { drop_in_place(&mut soul.count) };
         unsafe { read(&soul.value) }
@@ -68,10 +69,10 @@ impl<T> Soul<T> {
 }
 
 impl<T: ?Sized> Soul<T> {
-    /// Creates a new [`Lich`] bound to this [`Soul`].
+    /// Binds a new [`Lich`] to this [`Soul`].
     ///
-    /// This method can only be called on a pinned [`Soul`], which guarantees
-    /// that the [`Soul`]'s memory location is stable.
+    /// This method can only be called on a pinned [`Soul`], to guarantee that
+    /// the [`Soul`]'s memory location is fixed.
     pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S> {
         self.count.fetch_add(1, Ordering::Relaxed);
         Lich {
@@ -80,8 +81,7 @@ impl<T: ?Sized> Soul<T> {
         }
     }
 
-    /// Returns `true` if the [`Lich`] has been bound by this [`Soul`]'s
-    /// [`bind`](Soul::bind) method.
+    /// Returns `true` if the [`Lich`] is bound to this [`Soul`].
     pub fn is_bound<S: ?Sized>(&self, lich: &Lich<S>) -> bool {
         ptr::eq(&self.count, lich.count.as_ptr())
     }
@@ -95,9 +95,10 @@ impl<T: ?Sized> Soul<T> {
             .saturating_sub(1) as _
     }
 
-    /// Disposes of a [`Lich`] that was bound to this [`Soul`]. While not
-    /// required, returning the [`Lich`]es explicitly to the [`Soul`] ensures
-    /// that they will all be dropped when the [`Soul`] is dropped.
+    /// Disposes of a [`Lich`] that was bound to this [`Soul`].
+    ///
+    /// While not required, returning the [`Lich`]es explicitly to the [`Soul`]
+    /// ensures that they will all be dropped when the [`Soul`] is dropped.
     ///
     /// If the [`Lich`] was not bound to this [`Soul`], it is returned as an
     /// [`Err`].
@@ -110,8 +111,9 @@ impl<T: ?Sized> Soul<T> {
         }
     }
 
-    /// Severs all bindings to [`Lich`]es from this [`Soul`], blocking the
-    /// thread if any remain and returning the unpinned [`Soul`] on completion.
+    /// Ensures that all bindings to this [`Soul`] are severed, blocking the
+    /// current thread if any bound [`Lich`] remain and returning the unpinned
+    /// [`Soul`] on completion.
     pub fn sever<S: Deref<Target = Self>>(this: Pin<S>) -> S {
         if sever::<true>(&this.count) {
             // Safety: all bindings have been severed, guaranteed by `B::sever`.
@@ -121,8 +123,7 @@ impl<T: ?Sized> Soul<T> {
         }
     }
 
-    /// Attempts to sever all bindings to [`Lich`]es from this [`Soul`], without
-    /// blocking and returning the unpinned [`Soul`] on success.
+    /// Returns the unpinned [`Soul`] if all bindings to it are severed.
     pub fn try_sever<S: Deref<Target = Self>>(this: Pin<S>) -> Result<S, Pin<S>> {
         if sever::<false>(&this.count) {
             // Safety: all bindings have been severed, guaranteed by `B::sever`.
@@ -145,14 +146,14 @@ impl<T: ?Sized> Soul<T> {
     fn value_ptr(self: Pin<&Self>) -> NonNull<T> {
         // Safety: because `Soul` is pinned, it is safe to take pointers to it given
         // that those pointers are no longer accessible if the `Soul` is dropped which
-        // is guaranteed by ``
+        // is guaranteed by `<Soul as Drop>::drop`.
         unsafe { NonNull::new_unchecked(&self.value as *const _ as _) }
     }
 
     fn count_ptr(self: Pin<&Self>) -> NonNull<AtomicU32> {
         // Safety: because `Soul` is pinned, it is safe to take pointers to it given
         // that those pointers are no longer accessible if the `Soul` is dropped which
-        // is guaranteed by ``
+        // is guaranteed by `<Soul as Drop>::drop`.
         unsafe { NonNull::new_unchecked(&self.count as *const _ as _) }
     }
 }

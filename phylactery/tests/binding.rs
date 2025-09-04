@@ -165,8 +165,8 @@ fn can_be_stored_as_thread_local() {
     }
     let soul = Box::pin(Soul::new(|| {}));
     let lich = soul.as_ref().bind::<dyn Fn()>();
-    LICH.set(Some(lich));
-    LICH.take().unwrap();
+    assert!(LICH.replace(Some(lich)).is_none());
+    assert!(LICH.take().is_some());
 }
 
 #[test]
