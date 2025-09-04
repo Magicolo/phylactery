@@ -5,8 +5,6 @@ use core::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
-/// A `'static` pointer to a value owned by a [`Soul`](crate::soul::Soul).
-///
 /// A [`Lich`] acts like a `&'static T`, but its validity is dynamically tied to
 /// the lifetime of its parent [`Soul`](crate::soul::Soul) rather than being
 /// statically determined by the Rust compiler. This allows for safely
@@ -22,11 +20,12 @@ use core::{
 /// # Safety
 ///
 /// The core safety mechanism of this type is enforced by the
-/// [`Soul`](crate::soul::Soul)'s `Drop` implementation. If you attempt to drop
-/// a [`Soul`](crate::soul::Soul) while one or more of its [`Lich`]es are still
-/// in existence, the `Soul`'s drop will either block the current thread until
-/// all [`Lich`]es are dropped. This behavior guarantees that a [`Lich`] can
-/// never become a dangling pointer to the [`Soul`](crate::soul::Soul)'s data.
+/// [`Soul`](crate::soul::Soul)'s [`Drop`] implementation. If you attempt to
+/// drop a [`Soul`](crate::soul::Soul) while one or more of its [`Lich`]es are
+/// still in existence, the [`Soul`](crate::soul::Soul)'s drop will either block
+/// the current thread until all [`Lich`]es are dropped. This behavior
+/// guarantees that a [`Lich`] can never become a dangling pointer to the
+/// [`Soul`](crate::soul::Soul)'s data.
 pub struct Lich<T: ?Sized> {
     pub(crate) value: NonNull<T>,
     pub(crate) count: NonNull<AtomicU32>,
