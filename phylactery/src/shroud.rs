@@ -6,7 +6,7 @@ use core::ptr::NonNull;
 /// Note that it is already implemented for `Fn(T0, .., T7) -> T` and its
 /// combinations with [`Send`], [`Sync`] and [`Unpin`].
 ///
-/// See the [`shroud`] macro for convenient implementation.
+/// See the [`shroud`](crate::shroud) macro for convenient implementation.
 pub trait Shroud<T: ?Sized> {
     fn shroud(from: NonNull<T>) -> NonNull<Self>;
 }
