@@ -66,7 +66,7 @@ mod fails {
 
     fail!(can_not_drop_while_soul_lives, {
         use core::{cell::RefCell, pin::pin};
-        use phylactery::cell::Soul;
+        use phylactery::Soul;
 
         let cell = RefCell::new(String::new());
         let function = move |letter| cell.borrow_mut().push(letter);
@@ -76,26 +76,16 @@ mod fails {
 
     fail!(can_not_clone_soul, {
         use core::{cell::RefCell, pin::pin};
-        use phylactery::cell::Soul;
+        use phylactery::Soul;
 
         let cell = RefCell::new(String::new());
         let soul = Soul::new(move |letter| cell.borrow_mut().push(letter));
         <Soul<_> as Clone>::clone(&soul);
     });
 
-    fail!(can_not_send_cell_to_thread, {
-        use core::pin::pin;
-        use phylactery::cell::Soul;
-        use std::thread::spawn;
-
-        let soul = pin!(Soul::new(|| {}));
-        let lich = soul.as_ref().bind::<dyn Fn() + Send + Sync>();
-        spawn(move || lich());
-    });
-
     fail!(can_not_send_unsync_to_thread, {
         use core::pin::pin;
-        use phylactery::atomic::Soul;
+        use phylactery::Soul;
         use std::thread::spawn;
 
         let soul = pin!(Soul::new(|| {}));
