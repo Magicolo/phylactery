@@ -1,4 +1,4 @@
-use crate::{Binding, lich::Lich, shroud::Shroud};
+use crate::{lich::Lich, shroud::Shroud};
 use core::{
     borrow::Borrow,
     marker::PhantomPinned,
@@ -6,6 +6,7 @@ use core::{
     ops::Deref,
     pin::Pin,
     ptr::{self, NonNull, drop_in_place, read},
+    sync::atomic::{AtomicU32, Ordering},
 };
 
 /// The owner of a value whose lifetime is dynamically extended.
@@ -39,20 +40,20 @@ use core::{
 /// The [`Drop`] implementation of [`Soul`] is its core safety feature. If a
 /// [`Soul`] is dropped while any of its [`Lich`]es are still alive, the drop
 /// implementation will either block the current thread until all [`Lich`]es are
-/// dropped, or it will panic. This behavior depends on the chosen [`Binding`]
-/// and guarantees that no [`Lich`] can ever outlive the data it points to.
+/// dropped. This behavior guarantees that no [`Lich`] can ever outlive the data
+/// it points to.
 #[derive(Debug)]
-pub struct Soul<T: ?Sized, B: Binding> {
+pub struct Soul<T: ?Sized> {
     _marker: PhantomPinned,
-    bind: B,
+    count: AtomicU32,
     value: T,
 }
 
-impl<T, B: Binding> Soul<T, B> {
+impl<T> Soul<T> {
     pub const fn new(value: T) -> Self {
         Self {
             value,
-            bind: B::NEW,
+            count: AtomicU32::new(0),
             _marker: PhantomPinned,
         }
     }
@@ -61,34 +62,37 @@ impl<T, B: Binding> Soul<T, B> {
         // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
         // this unpinned `Soul`.
         let mut soul = ManuallyDrop::new(self);
-        unsafe { drop_in_place(&mut soul.bind) };
+        unsafe { drop_in_place(&mut soul.count) };
         unsafe { read(&soul.value) }
     }
 }
 
-impl<T: ?Sized, B: Binding> Soul<T, B> {
+impl<T: ?Sized> Soul<T> {
     /// Creates a new [`Lich`] bound to this [`Soul`].
     ///
     /// This method can only be called on a pinned [`Soul`], which guarantees
     /// that the [`Soul`]'s memory location is stable.
-    pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S, B> {
-        self.bind.increment();
+    pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S> {
+        self.count.fetch_add(1, Ordering::Relaxed);
         Lich {
-            bind: self.bind_ptr(),
+            count: self.count_ptr(),
             value: S::shroud(self.value_ptr()),
         }
     }
 
     /// Returns `true` if the [`Lich`] has been bound by this [`Soul`]'s
     /// [`bind`](Soul::bind) method.
-    pub fn is_bound<S: ?Sized>(&self, lich: &Lich<S, B>) -> bool {
-        ptr::eq(&self.bind, lich.bind.as_ptr())
+    pub fn is_bound<S: ?Sized>(&self, lich: &Lich<S>) -> bool {
+        ptr::eq(&self.count, lich.count.as_ptr())
     }
 
     /// Returns the number of [`Lich`]es that are currently bound to this
     /// [`Soul`].
     pub fn bindings(&self) -> usize {
-        self.bind.count() as _
+        self.count
+            .load(Ordering::Relaxed)
+            .wrapping_add(1)
+            .saturating_sub(1) as _
     }
 
     /// Disposes of a [`Lich`] that was bound to this [`Soul`]. While not
@@ -97,19 +101,19 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
     ///
     /// If the [`Lich`] was not bound to this [`Soul`], it is returned as an
     /// [`Err`].
-    pub fn redeem<S: ?Sized>(&self, lich: Lich<S, B>) -> Result<usize, Lich<S, B>> {
+    pub fn redeem<S: ?Sized>(&self, lich: Lich<S>) -> Result<usize, Lich<S>> {
         if self.is_bound(&lich) {
             forget(lich);
-            Ok(self.bind.decrement() as _)
+            Ok(self.count.fetch_sub(1, Ordering::Relaxed) as _)
         } else {
             Err(lich)
         }
     }
 
-    /// Severs all bindings to [`Lich`]es from this [`Soul`], returning the
-    /// unpinned [`Soul`].
+    /// Severs all bindings to [`Lich`]es from this [`Soul`], blocking the
+    /// thread if any remain and returning the unpinned [`Soul`] on completion.
     pub fn sever<S: Deref<Target = Self>>(this: Pin<S>) -> S {
-        if this.bind.sever::<true>() {
+        if sever::<true>(&this.count) {
             // Safety: all bindings have been severed, guaranteed by `B::sever`.
             unsafe { Self::unpin(this) }
         } else {
@@ -117,10 +121,10 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
         }
     }
 
-    /// Attempts to sever all bindings to [`Lich`]es from this [`Soul`],
-    /// returning the unpinned [`Soul`].
+    /// Attempts to sever all bindings to [`Lich`]es from this [`Soul`], without
+    /// blocking and returning the unpinned [`Soul`] on success.
     pub fn try_sever<S: Deref<Target = Self>>(this: Pin<S>) -> Result<S, Pin<S>> {
-        if this.bind.sever::<false>() {
+        if sever::<false>(&this.count) {
             // Safety: all bindings have been severed, guaranteed by `B::sever`.
             Ok(unsafe { Self::unpin(this) })
         } else {
@@ -141,19 +145,19 @@ impl<T: ?Sized, B: Binding> Soul<T, B> {
     fn value_ptr(self: Pin<&Self>) -> NonNull<T> {
         // Safety: because `Soul` is pinned, it is safe to take pointers to it given
         // that those pointers are no longer accessible if the `Soul` is dropped which
-        // is guaranteed by `B: Binding`
+        // is guaranteed by ``
         unsafe { NonNull::new_unchecked(&self.value as *const _ as _) }
     }
 
-    fn bind_ptr(self: Pin<&Self>) -> NonNull<B> {
+    fn count_ptr(self: Pin<&Self>) -> NonNull<AtomicU32> {
         // Safety: because `Soul` is pinned, it is safe to take pointers to it given
         // that those pointers are no longer accessible if the `Soul` is dropped which
-        // is guaranteed by `B: Binding`
-        unsafe { NonNull::new_unchecked(&self.bind as *const _ as _) }
+        // is guaranteed by ``
+        unsafe { NonNull::new_unchecked(&self.count as *const _ as _) }
     }
 }
 
-impl<T: ?Sized, B: Binding> Deref for Soul<T, B> {
+impl<T: ?Sized> Deref for Soul<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -161,20 +165,30 @@ impl<T: ?Sized, B: Binding> Deref for Soul<T, B> {
     }
 }
 
-impl<T: ?Sized, B: Binding> AsRef<T> for Soul<T, B> {
+impl<T: ?Sized> AsRef<T> for Soul<T> {
     fn as_ref(&self) -> &T {
         &self.value
     }
 }
 
-impl<T: ?Sized, B: Binding> Borrow<T> for Soul<T, B> {
+impl<T: ?Sized> Borrow<T> for Soul<T> {
     fn borrow(&self) -> &T {
         &self.value
     }
 }
 
-impl<T: ?Sized, B: Binding> Drop for Soul<T, B> {
+impl<T: ?Sized> Drop for Soul<T> {
     fn drop(&mut self) {
-        self.bind.sever::<true>();
+        sever::<true>(&self.count);
+    }
+}
+
+fn sever<const FORCE: bool>(count: &AtomicU32) -> bool {
+    loop {
+        match count.compare_exchange(0, u32::MAX, Ordering::Acquire, Ordering::Relaxed) {
+            Ok(0 | u32::MAX) | Err(u32::MAX) => break true,
+            Ok(value) | Err(value) if FORCE => atomic_wait::wait(count, value),
+            Ok(_) | Err(_) => break false,
+        }
     }
 }

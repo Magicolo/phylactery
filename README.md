@@ -15,21 +15,13 @@ Safe and thin wrappers around lifetime extension to allow non-static values to c
 
 ---
 ### In Brief
-- A `Soul<T, B>` wraps a given value `T`. When pinned (either with `core::pin::pin!` or `Box/Arc/Rc::pin`), it can produce `Lich<dyn Trait>`es that are bound to it (where `Trait` is a trait implemented by `T`). On drop, it will guarantee that the value `T` becomes unreachable (the behavior varies based on the `B: Binding`).
-- A `Lich<T, B>` is a handle to the value inside the `Soul`. It may have any lifetime (including `'static`), thus it is allowed to cross `'static` boundaries (such as when `std::thread::spawn`ing a thread or when storing a value in a `static` variable).
+- Wrap a value `T` with `Soul<T>::new(value)`.
+- Pin the `Soul` with `core::pin::pin!` or `Box/Arc/Rc::pin`.
+- Bind `Lich<dyn Trait>` to the `Soul` with `soul.bind::<dyn Trait>()` (where `Trait` is a trait implemented by `T`).
+- Use the `Lich` in a lifetime-extended context (such as crossing a `std::thread::spawn` `'static` boundary or storing in a `static` variable).
+- Make sure to drop all `Lich`es before dropping the `Soul`.
+- On drop, the `Soul` will block the thread until all `Lich`es are dropped, potentially creating a deadlock condition (in the name of memory safety).
 
-Two `B: Binding` implementations are currently supported and offer different tradeoffs:
-- `phylactery::cell::Cell`:
-    - Uses a `core::cell::Cell<u32>` internally for reference counting.
-    - Can **not** be sent to other threads.
-    - Create a `Soul` using `phylactery::cell::Soul::new(..)`
-    - When the `Soul` is dropped, the thread will panic unless all `Lich`es are dropped.
-- `phylactery::atomic::Atomic`:
-    - Uses a `core::sync::atomic::AtomicU32` for reference counting.
-    - Can be sent to other threads.
-    - Create a `Soul` using `phylactery::atomic::Soul::new(..)`
-    - When the `Soul` is dropped, the thread will block until all `Lich`es are dropped.
-    
 *Since this library makes use of some `unsafe` code, all tests are run with `miri` to try to catch any unsoundness.*
 *This library supports `#[no_std]` (use `default-features = false` in your 'Cargo.toml').*
 
@@ -43,10 +35,10 @@ Two `B: Binding` implementations are currently supported and offer different tra
 ///
 /// Contrary to other `scope` solutions, here, the captured reference can be
 /// returned (as a [`Soul<T>`]) while the threads continue to execute.
-#[cfg(all(feature = "atomic", feature = "shroud"))]
+#[cfg(feature = "shroud")]
 pub mod thread_spawn_bridge {
     use core::{num::NonZeroUsize, pin::Pin};
-    use phylactery::atomic::Soul;
+    use phylactery::Soul;
     use std::thread;
 
     pub fn broadcast<F: Fn(usize) + Send + Sync>(
@@ -74,7 +66,7 @@ pub mod thread_spawn_bridge {
 }
 
 fn main() {
-    #[cfg(all(feature = "atomic", feature = "shroud"))]
+    #[cfg(feature = "shroud")]
     thread_spawn_bridge::broadcast(
         std::thread::available_parallelism().unwrap_or(core::num::NonZeroUsize::MIN),
         &|index| println!("{index}"),
@@ -90,13 +82,10 @@ fn main() {
 ```rust
 /// Implements a thread local scoped logger available from anywhere that can
 /// borrow values that live on the stack.
-#[cfg(all(feature = "cell", feature = "shroud"))]
+#[cfg(feature = "shroud")]
 pub mod scoped_static_logger {
     use core::{cell::RefCell, fmt::Display, pin::pin};
-    use phylactery::{
-        cell::{Lich, Soul},
-        shroud::shroud,
-    };
+    use phylactery::{Lich, Soul, shroud};
 
     // Use the convenience macro to automatically implement the required `Shroud`
     // trait for all `T: Log`.
@@ -171,7 +160,7 @@ pub mod scoped_static_logger {
 }
 
 fn main() {
-    #[cfg(all(feature = "cell", feature = "shroud"))]
+    #[cfg(feature = "shroud")]
     scoped_static_logger::scope("some-prefix", &37, |value| {
         assert_eq!(*value, 37);
     });

@@ -5,7 +5,7 @@ use core::{
     ptr::NonNull,
     str::FromStr,
 };
-use phylactery::shroud::{Shroud, shroud};
+use phylactery::{Shroud, shroud};
 
 #[shroud]
 pub trait Simple {}

@@ -1,12 +1,9 @@
 /// Implements a thread local scoped logger available from anywhere that can
 /// borrow values that live on the stack.
-#[cfg(all(feature = "cell", feature = "shroud"))]
+#[cfg(feature = "shroud")]
 pub mod scoped_static_logger {
     use core::{cell::RefCell, fmt::Display, pin::pin};
-    use phylactery::{
-        cell::{Lich, Soul},
-        shroud::shroud,
-    };
+    use phylactery::{Lich, Soul, shroud};
 
     // Use the convenience macro to automatically implement the required `Shroud`
     // trait for all `T: Log`.
@@ -81,7 +78,7 @@ pub mod scoped_static_logger {
 }
 
 fn main() {
-    #[cfg(all(feature = "cell", feature = "shroud"))]
+    #[cfg(feature = "shroud")]
     scoped_static_logger::scope("some-prefix", &37, |value| {
         assert_eq!(*value, 37);
     });

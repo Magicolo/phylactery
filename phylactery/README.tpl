@@ -15,21 +15,13 @@ Crafted through a vile ritual, a phylactery is a magical receptacle that holds a
 
 ---
 ### In Brief
-- A `Soul<T, B>` wraps a given value `T`. When pinned (either with `core::pin::pin!` or `Box/Arc/Rc::pin`), it can produce `Lich<dyn Trait>`es that are bound to it (where `Trait` is a trait implemented by `T`). On drop, it will guarantee that the value `T` becomes unreachable (the behavior varies based on the `B: Binding`).
-- A `Lich<T, B>` is a handle to the value inside the `Soul`. It may have any lifetime (including `'static`), thus it is allowed to cross `'static` boundaries (such as when `std::thread::spawn`ing a thread or when storing a value in a `static` variable).
+- Wrap a value `T` with `Soul<T>::new(value)`.
+- Pin the `Soul` with `core::pin::pin!` or `Box/Arc/Rc::pin`.
+- Bind `Lich<dyn Trait>` to the `Soul` with `soul.bind::<dyn Trait>()` (where `Trait` is a trait implemented by `T`).
+- Use the `Lich` in a lifetime-extended context (such as crossing a `std::thread::spawn` `'static` boundary or storing in a `static` variable).
+- Make sure to drop all `Lich`es before dropping the `Soul`.
+- On drop, the `Soul` will block the thread until all `Lich`es are dropped, potentially creating a deadlock condition (in the name of memory safety).
 
-Two `B: Binding` implementations are currently supported and offer different tradeoffs:
-- `phylactery::cell::Cell`:
-    - Uses a `core::cell::Cell<u32>` internally for reference counting.
-    - Can **not** be sent to other threads.
-    - Create a `Soul` using `phylactery::cell::Soul::new(..)`
-    - When the `Soul` is dropped, the thread will panic unless all `Lich`es are dropped.
-- `phylactery::atomic::Atomic`:
-    - Uses a `core::sync::atomic::AtomicU32` for reference counting.
-    - Can be sent to other threads.
-    - Create a `Soul` using `phylactery::atomic::Soul::new(..)`
-    - When the `Soul` is dropped, the thread will block until all `Lich`es are dropped.
-    
 *Since this library makes use of some `unsafe` code, all tests are run with `miri` to try to catch any unsoundness.*
 *This library supports `#[no_std]` (use `default-features = false` in your 'Cargo.toml').*
 
