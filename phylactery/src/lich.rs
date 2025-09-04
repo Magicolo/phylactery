@@ -1,5 +1,9 @@
-use crate::Binding;
-use core::{borrow::Borrow, ops::Deref, ptr::NonNull};
+use core::{
+    borrow::Borrow,
+    ops::Deref,
+    ptr::NonNull,
+    sync::atomic::{AtomicU32, Ordering},
+};
 
 /// A `'static` pointer to a value owned by a [`Soul`](crate::soul::Soul).
 ///
@@ -12,9 +16,8 @@ use core::{borrow::Borrow, ops::Deref, ptr::NonNull};
 /// # Usage
 ///
 /// A [`Lich`] is created by calling [`Soul::bind()`](crate::soul::Soul::bind)
-/// on a pinned [`Soul`](crate::soul::Soul). It can be cloned freely and,
-/// depending on the [`Binding`] used, may be sent across threads. It
-/// dereferences to the value owned by the `Soul`.
+/// on a pinned [`Soul`](crate::soul::Soul). It can be cloned and be sent across
+/// threads. It dereferences to the value owned by the `Soul`.
 ///
 /// # Safety
 ///
@@ -22,69 +25,56 @@ use core::{borrow::Borrow, ops::Deref, ptr::NonNull};
 /// [`Soul`](crate::soul::Soul)'s `Drop` implementation. If you attempt to drop
 /// a [`Soul`](crate::soul::Soul) while one or more of its [`Lich`]es are still
 /// in existence, the `Soul`'s drop will either block the current thread until
-/// all [`Lich`]es are dropped, or it will panic. This behavior depends on the
-/// chosen [`Binding`] and guarantees that a [`Lich`] can never become a
-/// dangling pointer to the [`Soul`](crate::soul::Soul)'s data.
-pub struct Lich<T: ?Sized, B: Binding + ?Sized> {
+/// all [`Lich`]es are dropped. This behavior guarantees that a [`Lich`] can
+/// never become a dangling pointer to the [`Soul`](crate::soul::Soul)'s data.
+pub struct Lich<T: ?Sized> {
     pub(crate) value: NonNull<T>,
-    pub(crate) bind: NonNull<B>,
+    pub(crate) count: NonNull<AtomicU32>,
 }
 
-unsafe impl<T: ?Sized, B: Binding + ?Sized> Send for Lich<T, B>
-where
-    for<'a> &'a T: Send,
-    for<'a> &'a B: Send,
-{
-}
-unsafe impl<T: ?Sized, B: Binding + ?Sized> Sync for Lich<T, B>
-where
-    for<'a> &'a T: Sync,
-    for<'a> &'a B: Sync,
-{
-}
+unsafe impl<T: ?Sized> Send for Lich<T> where for<'a> &'a T: Send {}
+unsafe impl<T: ?Sized> Sync for Lich<T> where for<'a> &'a T: Sync {}
 
-impl<T: ?Sized, B: Binding + ?Sized> Lich<T, B> {
+impl<T: ?Sized> Lich<T> {
     /// Returns the number of `Lich`es that are currently bound to the
     /// [`Soul`](crate::soul::Soul).
     pub fn bindings(&self) -> usize {
-        self.bind_ref(false).unwrap().count() as _
+        self.count_ref()
+            .load(Ordering::Relaxed)
+            .wrapping_add(1)
+            .saturating_sub(1) as _
     }
 
-    fn bind_ref(&self, drop: bool) -> Result<&B, &'static str> {
-        if B::bail(self.bind.as_ptr(), drop) {
-            Err("accessing `Lich` while its `Soul` is unwinding")
-        } else {
-            // Safety: the pointers are valid for the lifetime of `self`; guaranteed by the
-            // `B: Binding`'s reference count.
-            Ok(unsafe { self.bind.as_ref() })
-        }
+    fn count_ref(&self) -> &AtomicU32 {
+        // Safety: the pointers are valid for the lifetime of `self`; guaranteed by the
+        // reference count.
+        unsafe { self.count.as_ref() }
     }
 
     fn data_ref(&self) -> Result<&T, &'static str> {
-        self.bind_ref(false)?;
         // Safety: the pointers are valid for the lifetime of `self`; guaranteed by the
-        // `B: Binding`'s reference count.
+        // reference count.
         Ok(unsafe { self.value.as_ref() })
     }
 }
 
-impl<T: ?Sized, B: Binding + ?Sized> Clone for Lich<T, B> {
+impl<T: ?Sized> Clone for Lich<T> {
     fn clone(&self) -> Self {
-        self.bind_ref(false).unwrap().increment();
+        self.count_ref().fetch_add(1, Ordering::Relaxed);
         Self {
             value: self.value,
-            bind: self.bind,
+            count: self.count,
         }
     }
 }
 
-impl<T: ?Sized, B: Binding + ?Sized> Borrow<T> for Lich<T, B> {
+impl<T: ?Sized> Borrow<T> for Lich<T> {
     fn borrow(&self) -> &T {
         self.data_ref().unwrap()
     }
 }
 
-impl<T: ?Sized, B: Binding + ?Sized> Deref for Lich<T, B> {
+impl<T: ?Sized> Deref for Lich<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -92,20 +82,19 @@ impl<T: ?Sized, B: Binding + ?Sized> Deref for Lich<T, B> {
     }
 }
 
-impl<T: ?Sized, B: Binding + ?Sized> AsRef<T> for Lich<T, B> {
+impl<T: ?Sized> AsRef<T> for Lich<T> {
     fn as_ref(&self) -> &T {
         self.data_ref().unwrap()
     }
 }
 
-impl<T: ?Sized, B: Binding + ?Sized> Drop for Lich<T, B> {
+impl<T: ?Sized> Drop for Lich<T> {
     fn drop(&mut self) {
-        if let Ok(bind) = self.bind_ref(true) {
-            match bind.decrement() {
-                0 | u32::MAX => unreachable!(),
-                1 => bind.redeem(),
-                _ => {}
-            }
+        let count = self.count_ref();
+        match count.fetch_sub(1, Ordering::Relaxed) {
+            0 | u32::MAX => unreachable!(),
+            1 => atomic_wait::wake_one(count),
+            _ => {}
         }
     }
 }

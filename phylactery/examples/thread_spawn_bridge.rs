@@ -2,10 +2,10 @@
 ///
 /// Contrary to other `scope` solutions, here, the captured reference can be
 /// returned (as a [`Soul<T>`]) while the threads continue to execute.
-#[cfg(all(feature = "atomic", feature = "shroud"))]
+#[cfg(feature = "shroud")]
 pub mod thread_spawn_bridge {
     use core::{num::NonZeroUsize, pin::Pin};
-    use phylactery::atomic::Soul;
+    use phylactery::Soul;
     use std::thread;
 
     pub fn broadcast<F: Fn(usize) + Send + Sync>(
@@ -33,7 +33,7 @@ pub mod thread_spawn_bridge {
 }
 
 fn main() {
-    #[cfg(all(feature = "atomic", feature = "shroud"))]
+    #[cfg(feature = "shroud")]
     thread_spawn_bridge::broadcast(
         std::thread::available_parallelism().unwrap_or(core::num::NonZeroUsize::MIN),
         &|index| println!("{index}"),
