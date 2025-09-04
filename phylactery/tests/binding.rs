@@ -139,7 +139,7 @@ macro_rules! tests {
 
 #[cfg(feature = "cell")]
 mod cell {
-    use core::{cell::RefCell, pin::pin};
+    use core::{cell::RefCell, fmt::Display, pin::pin};
     use phylactery::cell::{Lich, Soul};
     use std::{rc::Rc, sync::Arc, thread::spawn};
 
@@ -180,6 +180,24 @@ mod cell {
         .unwrap_err();
         drop(soul1);
         lich1();
+    }
+
+    #[test]
+    #[should_panic]
+    fn invalid_access_on_drop() {
+        struct Evil<'a>(&'a dyn Display);
+        impl Drop for Evil<'_> {
+            fn drop(&mut self) {
+                // `self.0` is garbage here...
+                assert_eq!("boba", format!("{}", self.0))
+            }
+        }
+
+        let soul = Box::pin(Soul::new("boba".to_string()));
+        let lich = soul.as_ref().bind::<dyn Display>();
+        let evil = Evil(lich.as_ref());
+        drop(soul);
+        drop(evil);
     }
 }
 
