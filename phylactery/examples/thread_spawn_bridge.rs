@@ -27,7 +27,8 @@ pub mod thread_spawn_bridge {
         // becomes inaccessible when it itself drops.
         //
         // If a `Lich` bound to this `Soul` still lives at the time of drop,
-        // `<Soul as Drop>::drop` will block until all `Lich`es are dropped.
+        // `<Soul as Drop>::drop` will block the current thread until all `Lich`es are
+        // dropped.
         soul
     }
 }
