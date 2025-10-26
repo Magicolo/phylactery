@@ -1,4 +1,7 @@
-use crate::{lich::Lich, shroud::Shroud};
+use crate::{
+    lich::{Lich, decrement, increment},
+    shroud::Shroud,
+};
 use core::{
     borrow::Borrow,
     marker::PhantomPinned,
@@ -74,7 +77,7 @@ impl<T: ?Sized> Soul<T> {
     /// This method can only be called on a pinned [`Soul`], to guarantee that
     /// the [`Soul`]'s memory location is fixed.
     pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S> {
-        self.count.fetch_add(1, Ordering::Relaxed);
+        increment(&self.count);
         Lich {
             count: self.count_ptr(),
             value: S::shroud(self.value_ptr()),
@@ -100,12 +103,12 @@ impl<T: ?Sized> Soul<T> {
     /// While not required, returning the [`Lich`]es explicitly to the [`Soul`]
     /// ensures that they will all be dropped when the [`Soul`] is dropped.
     ///
-    /// If the [`Lich`] was not bound to this [`Soul`], it is returned as an
-    /// [`Err`].
+    /// Returns [`Ok`] with the remaining [`Lich`] count if the [`Lich`] was
+    /// bound to this [`Soul`], else [`Err`] with the [`Lich`].
     pub fn redeem<S: ?Sized>(&self, lich: Lich<S>) -> Result<usize, Lich<S>> {
         if self.is_bound(&lich) {
             forget(lich);
-            Ok(self.count.fetch_sub(1, Ordering::Relaxed) as _)
+            Ok(decrement(&self.count) as _)
         } else {
             Err(lich)
         }

@@ -59,7 +59,7 @@ impl<T: ?Sized> Lich<T> {
 
 impl<T: ?Sized> Clone for Lich<T> {
     fn clone(&self) -> Self {
-        self.count_ref().fetch_add(1, Ordering::Relaxed);
+        increment(self.count_ref());
         Self {
             value: self.value,
             count: self.count,
@@ -90,10 +90,30 @@ impl<T: ?Sized> AsRef<T> for Lich<T> {
 impl<T: ?Sized> Drop for Lich<T> {
     fn drop(&mut self) {
         let count = self.count_ref();
-        match count.fetch_sub(1, Ordering::Relaxed) {
-            0 | u32::MAX => unreachable!(),
-            1 => atomic_wait::wake_one(count),
-            _ => {}
+        if decrement(self.count_ref()) == 0 {
+            atomic_wait::wake_one(count);
         }
+    }
+}
+
+pub(crate) fn increment(count: &AtomicU32) -> u32 {
+    let result = count.fetch_update(Ordering::Acquire, Ordering::Relaxed, |value| {
+        if value < u32::MAX - 1 {
+            Some(value + 1)
+        } else {
+            None
+        }
+    });
+    match result {
+        Ok(value) => value,
+        Err(u32::MAX) => unreachable!(),
+        Err(_) => panic!("maximum number of `Lich`es reached"),
+    }
+}
+
+pub(crate) fn decrement(count: &AtomicU32) -> u32 {
+    match count.fetch_sub(1, Ordering::Relaxed) {
+        0 | u32::MAX => unreachable!(),
+        value => value - 1,
     }
 }
