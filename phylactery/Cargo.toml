@@ -1,6 +1,6 @@
 [package]
 name = "phylactery"
-version = "2.0.4"
+version = "2.0.5"
 edition = "2021"
 authors = ["Magicolo <magicololand@gmail.com>"]
 readme = "README.md"
@@ -22,5 +22,5 @@ shroud = ["phylactery_macro"]
 
 [dependencies]
 atomic-wait = { version = "1.1.0", default-features = false }
-phylactery_macro = { version = "0.4.4", path = "../phylactery_macro", default-features = false, optional = true }
+phylactery_macro = { version = "0.4.5", path = "../phylactery_macro", default-features = false, optional = true }
 rustversion = "1.0.22"
