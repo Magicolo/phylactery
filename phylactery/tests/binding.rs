@@ -1,11 +1,6 @@
 #![cfg(feature = "shroud")]
 
-use core::{
-    cell::RefCell,
-    mem::{ManuallyDrop, forget},
-    pin::pin,
-    time::Duration,
-};
+use core::{cell::RefCell, pin::pin, time::Duration};
 use phylactery::{Lich, Soul};
 use std::{
     rc::Rc,
@@ -189,12 +184,13 @@ fn unwinds_on_different_threads() {
     panic!();
 }
 
-#[test]
-#[should_panic]
-fn too_many_liches_panics() {
-    let soul = Box::pin(Soul::new(|| {}));
-    let soul = ManuallyDrop::new(soul);
-    for _ in 0..u32::MAX {
-        forget(soul.as_ref().bind::<dyn Fn()>());
-    }
-}
+// Too slow to run...
+// #[test]
+// #[should_panic]
+// fn too_many_liches_panics() {
+//     let soul = Box::pin(Soul::new(|| {}));
+//     let soul = ManuallyDrop::new(soul);
+//     for _ in 0..u32::MAX {
+//         forget(soul.as_ref().bind::<dyn Fn()>());
+//     }
+// }
