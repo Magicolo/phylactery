@@ -10,7 +10,7 @@ jobs:
     container: 
       image: ghcr.io/magicolo/rust
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - run: cargo hack nextest run --release --all-targets --verbose --feature-powerset --no-tests pass
     - run: cargo hack test --doc --release --all-features --verbose
   miri:
@@ -18,14 +18,14 @@ jobs:
     container: 
       image: ghcr.io/magicolo/rust
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - run: cargo +nightly hack miri nextest run --all-targets --verbose --feature-powerset --no-tests pass
   clippy:
     runs-on: ubuntu-latest
     container: 
       image: ghcr.io/magicolo/rust
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - run: cargo hack clippy --release --all-targets --verbose --feature-powerset -- --deny warnings --allow clippy::needless-doctest-main
   doc:
     runs-on: ubuntu-latest
@@ -34,21 +34,21 @@ jobs:
     env:
       RUSTDOCFLAGS: --deny warnings
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - run: cargo doc --no-deps --release --verbose --all-features
   semver:
     runs-on: ubuntu-latest
     container: 
       image: ghcr.io/magicolo/rust
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - run: cargo semver-checks --verbose
   msrv:
     runs-on: ubuntu-latest
     container: 
       image: ghcr.io/magicolo/rust
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - run: cargo msrv verify --all-features --path phylactery
     - run: cargo msrv verify --all-features --path phylactery_macro
   audit:
@@ -56,12 +56,12 @@ jobs:
     container: 
       image: ghcr.io/magicolo/rust
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - run: cargo audit --deny warnings
   coverage:
     runs-on: ubuntu-latest
     container: 
       image: ghcr.io/magicolo/rust
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - run: cargo llvm-cov nextest --fail-under-regions 75 --all-features --all-targets --release --verbose
