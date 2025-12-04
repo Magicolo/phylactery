@@ -46,7 +46,13 @@ mod implement {
                 impl<$($generic: ?Sized,)* $($name,)* TConcrete: $trait<$($generic,)* $($name,)*> $(+ $traits)*> $crate::shroud::Shroud<TConcrete> for dyn $trait<$($generic,)* $($name,)* $($associate = TConcrete::$associate,)*> $(+ $traits)* where $($name: $bound,)* {
                     #[inline(always)]
                     fn shroud(from: ::core::ptr::NonNull<TConcrete>) -> ::core::ptr::NonNull<Self> {
-                        unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as *mut _) }
+                        unsafe {
+                            let ptr = ::std::mem::transmute::<
+                                *mut (dyn $trait<$($generic,)* $($name,)* $($associate = TConcrete::$associate,)*> $(+ $traits)*  + '_),
+                                *mut (dyn $trait<$($generic,)* $($name,)* $($associate = TConcrete::$associate,)*> $(+ $traits)*  + 'static),
+                            >(from.as_ptr() as *mut _);
+                            ::core::ptr::NonNull::new_unchecked(ptr)
+                        }
                     }
                 }
             };
@@ -91,7 +97,13 @@ mod implement {
             impl<$($parameter,)* $return, TConcrete: $function($($parameter),*) -> $return $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
                 #[inline(always)]
                 fn shroud(from: ::core::ptr::NonNull<TConcrete>) -> ::core::ptr::NonNull<Self> {
-                    unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as *mut _) }
+                    unsafe {
+                        let ptr = ::std::mem::transmute::<
+                            *mut (dyn $function($($parameter),*) -> $return $(+ $trait)*  + '_),
+                            *mut (dyn $function($($parameter),*) -> $return $(+ $trait)*  + 'static),
+                        >(from.as_ptr() as *mut _);
+                        ::core::ptr::NonNull::new_unchecked(ptr)
+                    }
                 }
             }
         };
