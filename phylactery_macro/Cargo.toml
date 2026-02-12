@@ -9,17 +9,17 @@ license = "MIT"
 repository = "https://github.com/Magicolo/phylactery/phylactery_macro"
 keywords = ["unsafe", "lifetime", "scope", "extension", "static"]
 categories = ["concurrency", "no-std", "data-structures", "memory-management"]
-rust-version = "1.68"
+rust-version = "1.75"
 
 [lib]
 proc-macro = true
 
 [dependencies]
-syn = { version = "2.0.108", default-features = false, features = [
+syn = { version = "2.0.114", default-features = false, features = [
     "clone-impls",
     "proc-macro",
     "parsing",
     "full",
     "printing",
 ] }
-quote = { version = "1.0.41", default-features = false }
+quote = { version = "1.0.44", default-features = false }
