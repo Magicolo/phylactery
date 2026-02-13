@@ -28,11 +28,18 @@ mod implement {
             shroud_ty! { use: $use, trait: $trait, generics: ($($generic),*), bounds: ($($name: $bound),*), associates: (), dynamic: false, traits: ($($traits),*) }
             const _: () = {
                 use $use;
+
                 #[automatically_derived]
+                #[allow(unused_parens)]
                 impl<$($generic: ?Sized,)* $($name,)*> $crate::shroud::Shroud<dyn $trait<$($generic,)* $($name,)*> $(+ $traits)*> for dyn $trait<$($generic,)* $($name,)*> $(+ $traits)* where $($name: $bound,)* {
                     #[inline(always)]
                     fn shroud(from: ::core::ptr::NonNull<dyn $trait<$($generic,)* $($name,)*> $(+ $traits)*>) -> ::core::ptr::NonNull<Self> {
-                        unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as *mut _) }
+                        unsafe {
+                            ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
+                                *mut (dyn $trait<$($generic,)* $($name,)*> $(+ $traits)*),
+                                *mut Self
+                            >(from.as_ptr() as _))
+                        }
                     }
                 }
             };
@@ -42,11 +49,16 @@ mod implement {
                 use $use;
 
                 #[automatically_derived]
-                #[allow(drop_bounds, dyn_drop)]
+                #[allow(drop_bounds, dyn_drop, unused_parens)]
                 impl<$($generic: ?Sized,)* $($name,)* TConcrete: $trait<$($generic,)* $($name,)*> $(+ $traits)*> $crate::shroud::Shroud<TConcrete> for dyn $trait<$($generic,)* $($name,)* $($associate = TConcrete::$associate,)*> $(+ $traits)* where $($name: $bound,)* {
                     #[inline(always)]
                     fn shroud(from: ::core::ptr::NonNull<TConcrete>) -> ::core::ptr::NonNull<Self> {
-                        unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as *mut _) }
+                        unsafe {
+                            ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
+                                *mut (dyn $trait<$($generic,)* $($name,)* $($associate = TConcrete::$associate,)*> $(+ $traits)*),
+                                *mut Self
+                            >(from.as_ptr() as _))
+                        }
                     }
                 }
             };
@@ -80,18 +92,30 @@ mod implement {
         };
         (@IMPLEMENT { function: $function: ident, parameters: ($($parameter: ident),*), return: $return: ident, traits: ($($trait: path),*) $(,)? }) => {
             #[automatically_derived]
+            #[allow(unused_parens)]
             impl<$($parameter,)* $return> $crate::shroud::Shroud<dyn $function($($parameter),*) -> $return $(+ $trait)*> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
                 #[inline(always)]
                 fn shroud(from: ::core::ptr::NonNull<dyn $function($($parameter),*) -> $return $(+ $trait)*>) -> ::core::ptr::NonNull<Self> {
-                    unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as *mut _) }
+                    unsafe {
+                        ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
+                            *mut (dyn $function($($parameter),*) -> $return $(+ $trait)*),
+                            *mut Self
+                        >(from.as_ptr() as _))
+                    }
                 }
             }
 
             #[automatically_derived]
+            #[allow(unused_parens)]
             impl<$($parameter,)* $return, TConcrete: $function($($parameter),*) -> $return $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
                 #[inline(always)]
                 fn shroud(from: ::core::ptr::NonNull<TConcrete>) -> ::core::ptr::NonNull<Self> {
-                    unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as *mut _) }
+                    unsafe {
+                        ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
+                            *mut (dyn $function($($parameter),*) -> $return $(+ $trait)*),
+                            *mut Self
+                        >(from.as_ptr() as _))
+                    }
                 }
             }
         };

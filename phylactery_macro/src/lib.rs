@@ -4,8 +4,8 @@ mod shroud;
 use crate::shroud::Shroud;
 use quote::{quote, quote_spanned};
 use syn::{
-    ConstParam, GenericParam, Generics, ItemTrait, LifetimeParam, TraitItem, TraitItemType,
-    TypeParam, parse_macro_input,
+    parse_macro_input, ConstParam, GenericParam, Generics, ItemTrait, LifetimeParam, TraitItem,
+    TraitItemType, TypeParam,
 };
 
 #[proc_macro_attribute]
@@ -67,7 +67,12 @@ pub fn shroud(
                     impl<'__life_in__, '__life_out__: '__life_in__, #(#parameters,)*> ::phylactery::Shroud<dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__> for dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_out__ #where_clause {
                         #[inline(always)]
                         fn shroud(from: ::core::ptr::NonNull<dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__>) -> ::core::ptr::NonNull<Self> {
-                            unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as _) }
+                            unsafe {
+                                ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
+                                    *mut (dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__),
+                                    *mut (dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_out__)
+                                >(from.as_ptr() as _))
+                            }
                         }
                     }
                 )
@@ -77,7 +82,12 @@ pub fn shroud(
                     impl<'__life__, #(#parameters,)* __TConcrete__: #ident<#(#parameter_names,)*> #(+ #paths)*> ::phylactery::Shroud<__TConcrete__> for dyn #ident<#(#parameter_names,)* #(#associates = __TConcrete__::#associates,)*> #(+ #paths)* + '__life__ #where_clause {
                         #[inline(always)]
                         fn shroud(from: ::core::ptr::NonNull<__TConcrete__>) -> ::core::ptr::NonNull<Self> {
-                            unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as _) }
+                            unsafe {
+                                ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
+                                    *mut (dyn #ident<#(#parameter_names,)* #(#associates = __TConcrete__::#associates,)*> #(+ #paths)*),
+                                    *mut Self
+                                >(from.as_ptr() as _))
+                            }
                         }
                     }
                 )
