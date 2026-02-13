@@ -21,6 +21,6 @@ std = []
 shroud = ["phylactery_macro"]
 
 [dependencies]
-atomic-wait = { version = "1.1.0", default-features = false }
-phylactery_macro = { version = "0.4.7", path = "../phylactery_macro", default-features = false, optional = true }
-rustversion = "1.0.22"
+atomic-wait = { version = "1.1", default-features = false }
+phylactery_macro = { version = "0.4", path = "../phylactery_macro", default-features = false, optional = true }
+rustversion = "1.0"
