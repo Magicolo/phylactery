@@ -1,3 +1,4 @@
+use crate::soul::SEVERED;
 use core::{
     borrow::Borrow,
     fmt,
@@ -39,11 +40,13 @@ unsafe impl<T: ?Sized> Sync for Lich<T> where for<'a> &'a T: Sync {}
 impl<T: ?Sized> Lich<T> {
     /// Returns the number of `Lich`es that are currently bound to the
     /// [`Soul`](crate::soul::Soul).
+    ///
+    /// Returns `0` both when no Liches are bound and when the
+    /// [`Soul`](crate::soul::Soul) has already been severed.
     pub fn bindings(&self) -> usize {
-        self.count_ref()
-            .load(Ordering::Relaxed)
-            .wrapping_add(1)
-            .saturating_sub(1) as _
+        let raw = self.count_ref().load(Ordering::Relaxed);
+        // `SEVERED` (`u32::MAX`) is the severed sentinel; treat it as 0 live bindings.
+        raw.wrapping_add(1).saturating_sub(1) as _
     }
 
     /// Disposes of this [`Lich`], decrementing the binding count for its
@@ -144,7 +147,7 @@ impl<T: ?Sized> Drop for Lich<T> {
 
 pub(crate) fn increment(count: &AtomicU32) -> u32 {
     let result = count.fetch_update(Ordering::Acquire, Ordering::Relaxed, |value| {
-        if value < u32::MAX - 1 {
+        if value < SEVERED - 1 {
             Some(value + 1)
         } else {
             None
@@ -152,14 +155,17 @@ pub(crate) fn increment(count: &AtomicU32) -> u32 {
     });
     match result {
         Ok(value) => value,
-        Err(u32::MAX) => unreachable!(),
+        // `Err(SEVERED)` means `sever` has already been called. `bind` requires a
+        // `Pin<&Self>` which is impossible to hold after `sever` consumes the Pin,
+        // so this branch is unreachable in safe code.
+        Err(SEVERED) => unreachable!("bind called on a severed Soul"),
         Err(_) => panic!("maximum number of `Lich`es reached"),
     }
 }
 
 pub(crate) fn decrement(count: &AtomicU32) -> u32 {
     match count.fetch_sub(1, Ordering::Relaxed) {
-        0 | u32::MAX => unreachable!(),
+        0 | SEVERED => unreachable!(),
         value => value - 1,
     }
 }

@@ -12,6 +12,11 @@ use core::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
+/// Sentinel value written to `Soul::count` by `sever` to indicate that the
+/// Soul has been permanently deactivated. `u32::MAX - 1` is the maximum
+/// number of live Liches; `u32::MAX` is reserved as the dead state.
+pub(crate) const SEVERED: u32 = u32::MAX;
+
 /// The owner of a value whose lifetime is dynamically extended.
 ///
 /// A `Soul` is the anchor for a set of [`Lich`] pointers. It takes ownership of
@@ -89,11 +94,13 @@ impl<T: ?Sized> Soul<T> {
 
     /// Returns the number of [`Lich`]es that are currently bound to this
     /// [`Soul`].
+    ///
+    /// Returns `0` both when no Liches are bound and when the [`Soul`] has
+    /// already been severed.
     pub fn bindings(&self) -> usize {
-        self.count
-            .load(Ordering::Relaxed)
-            .wrapping_add(1)
-            .saturating_sub(1) as _
+        let raw = self.count.load(Ordering::Relaxed);
+        // `SEVERED` (`u32::MAX`) is the severed sentinel; treat it as 0 live bindings.
+        raw.wrapping_add(1).saturating_sub(1) as _
     }
 
     /// Ensures that all bindings to this [`Soul`] are severed, blocking the
@@ -177,8 +184,11 @@ impl<T: ?Sized> Drop for Soul<T> {
 
 fn sever<const FORCE: bool>(count: &AtomicU32) -> bool {
     loop {
-        match count.compare_exchange(0, u32::MAX, Ordering::Acquire, Ordering::Relaxed) {
-            Ok(0 | u32::MAX) | Err(u32::MAX) => break true,
+        match count.compare_exchange(0, SEVERED, Ordering::Acquire, Ordering::Relaxed) {
+            // `compare_exchange(0, …)` returns `Ok(old_value)` only when `old_value == 0`,
+            // so only `Ok(0)` can appear here. `Err(SEVERED)` means a concurrent `sever`
+            // already completed; either way, the Soul is severed.
+            Ok(0) | Err(SEVERED) => break true,
             Ok(value) | Err(value) if FORCE => atomic_wait::wait(count, value),
             Ok(_) | Err(_) => break false,
         }
