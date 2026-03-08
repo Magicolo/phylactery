@@ -101,7 +101,9 @@ impl<T: ?Sized> Soul<T> {
     /// [`Soul`] on completion.
     pub fn sever<S: Deref<Target = Self>>(this: Pin<S>) -> S {
         if sever::<true>(&this.count) {
-            // Safety: all bindings have been severed, guaranteed by `B::sever`.
+            // Safety: `sever::<true>` returned `true`, which guarantees the atomic
+            // count has been set to `u32::MAX` and all previously live Liches have
+            // been dropped.  It is therefore safe to unpin the Soul.
             unsafe { Self::unpin(this) }
         } else {
             panic!("sever failed possibly due to unwinding")
@@ -111,7 +113,9 @@ impl<T: ?Sized> Soul<T> {
     /// Returns the unpinned [`Soul`] if all bindings to it are severed.
     pub fn try_sever<S: Deref<Target = Self>>(this: Pin<S>) -> Result<S, Pin<S>> {
         if sever::<false>(&this.count) {
-            // Safety: all bindings have been severed, guaranteed by `B::sever`.
+            // Safety: `sever::<false>` returned `true`, which means the CAS
+            // succeeded (count was 0) and no Liches are bound.  It is therefore
+            // safe to unpin the Soul.
             Ok(unsafe { Self::unpin(this) })
         } else {
             Err(this)
@@ -120,8 +124,10 @@ impl<T: ?Sized> Soul<T> {
 
     /// # Safety
     ///
-    /// It **must** be the case the all bindings to [`Lich`]es have been severed
-    /// before calling this function.
+    /// The caller must ensure that `sever` (the standalone free function in this
+    /// module) has returned `true` for this Soul's `count` field before calling
+    /// this function.  That is, all bound [`Lich`]es must have been dropped and
+    /// the `count` must have been atomically set to `u32::MAX`.
     unsafe fn unpin<S: Deref<Target = Self>>(this: Pin<S>) -> S {
         debug_assert_eq!(this.bindings(), 0);
         // Safety: no `Lich`es are bound, the `Soul` can be unpinned.
