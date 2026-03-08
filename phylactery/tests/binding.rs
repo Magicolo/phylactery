@@ -1,6 +1,6 @@
 #![cfg(feature = "shroud")]
 
-use core::{cell::RefCell, pin::pin, time::Duration};
+use core::{cell::RefCell, fmt, pin::pin, time::Duration};
 use phylactery::{Lich, Soul};
 use std::{
     rc::Rc,
@@ -194,6 +194,27 @@ fn unwinds_on_different_threads() {
 //         forget(soul.as_ref().bind::<dyn Fn()>());
 //     }
 // }
+
+#[test]
+fn lich_debug_shows_value_and_bindings() {
+    let soul = Box::pin(Soul::new(42_i32));
+    let lich = soul.as_ref().bind::<dyn fmt::Debug>();
+    let debug = format!("{lich:?}");
+    assert!(debug.contains("Lich"), "Debug output should contain 'Lich': {debug}");
+    assert!(debug.contains("42"), "Debug output should contain the value '42': {debug}");
+    assert!(
+        debug.contains("bindings"),
+        "Debug output should contain 'bindings': {debug}"
+    );
+}
+
+#[test]
+fn lich_display_forwards_to_inner() {
+    let soul = Box::pin(Soul::new(42_i32));
+    let lich = soul.as_ref().bind::<dyn fmt::Display>();
+    let display = format!("{lich}");
+    assert_eq!(display, "42");
+}
 
 /// Regression test for Issue 01: `Soul::redeem` must wake a parked `sever` thread.
 ///
