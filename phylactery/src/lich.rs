@@ -64,7 +64,7 @@ impl<T: ?Sized> Lich<T> {
         count
     }
 
-    /// Safety: must be called only once for this `Lich` when is became
+    /// Safety: must be called only once for this `Lich` when it became
     /// unreachable.
     unsafe fn redeem_unchecked(&self) -> usize {
         let count = self.count_ref();
