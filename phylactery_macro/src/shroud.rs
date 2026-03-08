@@ -119,21 +119,40 @@ fn join<S: AsRef<str>, I: AsRef<str>>(separator: S, items: impl IntoIterator<Ite
 }
 
 fn combinations<T>(mut items: &[T]) -> Vec<Vec<&T>> {
-    let mut groups = Vec::with_capacity(items.len() * items.len());
+    let n = items.len();
+    let mut groups = Vec::with_capacity(1 << n);
     groups.push(Vec::new());
     while let Some((head, tail)) = items.split_first() {
         groups.push(vec![head]);
         for size in 1..=tail.len() {
-            for index in 0..=tail.len() - size {
+            for subset in choose(tail, size) {
                 let mut group = Vec::with_capacity(size + 1);
                 group.push(head);
-                group.extend(&tail[index..index + size]);
+                group.extend(subset);
                 groups.push(group);
             }
         }
         items = tail;
     }
     groups
+}
+
+fn choose<T>(items: &[T], k: usize) -> Vec<Vec<&T>> {
+    if k == 0 {
+        return vec![vec![]];
+    }
+    let Some((head, tail)) = items.split_first() else {
+        return vec![];
+    };
+    let mut result = Vec::new();
+    for subset in choose(tail, k - 1) {
+        let mut group = Vec::with_capacity(k);
+        group.push(head);
+        group.extend(subset);
+        result.push(group);
+    }
+    result.extend(choose(tail, k));
+    result
 }
 
 #[test]
@@ -166,6 +185,7 @@ fn produces_all_combinations() {
             vec![&'a', &'c'],
             vec![&'a', &'d'],
             vec![&'a', &'b', &'c'],
+            vec![&'a', &'b', &'d'],
             vec![&'a', &'c', &'d'],
             vec![&'a', &'b', &'c', &'d'],
             vec![&'b'],

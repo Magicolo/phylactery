@@ -194,7 +194,7 @@ fn unwinds_on_different_threads() {
 fn redeem_wakes_sever_thread() {
     use std::sync::mpsc;
 
-    let soul: std::pin::Pin<Arc<Soul<fn()>>> = Arc::pin(Soul::new(|| {}));
+    let soul = Arc::pin(Soul::new(|| {}));
     let lich = soul.as_ref().bind::<dyn Fn()>();
 
     // Clone the Arc so the spawned thread can call sever.
