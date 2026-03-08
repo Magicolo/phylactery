@@ -12,7 +12,7 @@ use core::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
-/// Sentinel value written to `Soul.count` by `sever` to indicate that the
+/// Sentinel value written to `Soul::count` by `sever` to indicate that the
 /// Soul has been permanently deactivated. `u32::MAX - 1` is the maximum
 /// number of live Liches; `u32::MAX` is reserved as the dead state.
 pub(crate) const SEVERED: u32 = u32::MAX;
@@ -101,7 +101,7 @@ impl<T: ?Sized> Soul<T> {
     /// already been severed.
     pub fn bindings(&self) -> usize {
         let raw = self.count.load(Ordering::Relaxed);
-        // `SEVERED` (`u32::MAX`) is the "severed" sentinel; treat it as 0 live bindings.
+        // `SEVERED` (`u32::MAX`) is the severed sentinel; treat it as 0 live bindings.
         raw.wrapping_add(1).saturating_sub(1) as _
     }
 
