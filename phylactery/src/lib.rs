@@ -4,6 +4,7 @@
 mod lich;
 mod shroud;
 mod soul;
+mod sync;
 
 pub use lich::Lich;
 /// A convenience macro to implement the [`Shroud<T>`] trait for a given trait.

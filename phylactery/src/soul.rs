@@ -1,6 +1,7 @@
 use crate::{
     lich::{Lich, decrement, increment},
     shroud::Shroud,
+    sync::{self, AtomicU32, Ordering},
 };
 use core::{
     borrow::Borrow,
@@ -9,7 +10,6 @@ use core::{
     ops::Deref,
     pin::Pin,
     ptr::{self, NonNull, drop_in_place, read},
-    sync::atomic::{AtomicU32, Ordering},
 };
 
 /// The owner of a value whose lifetime is dynamically extended.
@@ -53,7 +53,17 @@ pub struct Soul<T: ?Sized> {
 }
 
 impl<T> Soul<T> {
+    #[cfg(not(loom))]
     pub const fn new(value: T) -> Self {
+        Self {
+            value,
+            count: AtomicU32::new(0),
+            _marker: PhantomPinned,
+        }
+    }
+
+    #[cfg(loom)]
+    pub fn new(value: T) -> Self {
         Self {
             value,
             count: AtomicU32::new(0),
@@ -191,7 +201,7 @@ fn sever<const FORCE: bool>(count: &AtomicU32) -> bool {
     loop {
         match count.compare_exchange(0, u32::MAX, Ordering::Acquire, Ordering::Relaxed) {
             Ok(0 | u32::MAX) | Err(u32::MAX) => break true,
-            Ok(value) | Err(value) if FORCE => atomic_wait::wait(count, value),
+            Ok(value) | Err(value) if FORCE => sync::wait(count, value),
             Ok(_) | Err(_) => break false,
         }
     }

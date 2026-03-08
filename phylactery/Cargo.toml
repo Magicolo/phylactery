@@ -15,6 +15,9 @@ rust-version = "1.75"
 [badges]
 github = { repository = "Magicolo/phylactery", workflow = "test" }
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(loom)'] }
+
 [features]
 default = ["std", "shroud"]
 std = []
@@ -24,3 +27,6 @@ shroud = ["phylactery_macro"]
 atomic-wait = { version = "1.1", default-features = false }
 phylactery_macro = { version = "0.4", path = "../phylactery_macro", default-features = false, optional = true }
 rustversion = "1.0"
+
+[target.'cfg(loom)'.dependencies]
+loom = "0.7"
