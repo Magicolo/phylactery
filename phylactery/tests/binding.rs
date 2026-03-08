@@ -242,3 +242,48 @@ fn redeem_wakes_sever_thread() {
 
     handle.join().unwrap();
 }
+
+/// Regression test: `wake_all` must unblock *all* threads parked in `Soul::sever`,
+/// not just one. If `wake_one` were used instead, only one of the sever threads
+/// would be released and the others would park indefinitely.
+#[test]
+fn redeem_wakes_all_sever_threads() {
+    use std::sync::mpsc;
+
+    const SEVER_THREADS: usize = 4;
+
+    let soul = Arc::pin(Soul::new(|| {}));
+    let lich = soul.as_ref().bind::<dyn Fn()>();
+
+    let (tx, rx) = mpsc::channel::<()>();
+
+    // Spawn multiple threads, each calling Soul::sever on its own clone of the Arc.
+    let handles: Vec<_> = (0..SEVER_THREADS)
+        .map(|_| {
+            let soul_clone = soul.clone();
+            let tx_clone = tx.clone();
+            spawn(move || {
+                Soul::sever(soul_clone);
+                let _ = tx_clone.send(());
+            })
+        })
+        .collect();
+    // Drop the original sender so the channel closes when all sever threads finish.
+    drop(tx);
+
+    // Give all sever threads time to enter atomic_wait::wait.
+    sleep(Duration::from_millis(30));
+
+    // Redeem the last Lich; wake_all must unblock every sever thread.
+    assert_eq!(lich.redeem(), 0, "lich should be the last binding");
+
+    // Every sever thread must complete within a generous deadline.
+    for _ in 0..SEVER_THREADS {
+        rx.recv_timeout(Duration::from_millis(1000))
+            .expect("a sever thread was not woken after redeem (wake_all regression)");
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+}
