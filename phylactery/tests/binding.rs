@@ -194,3 +194,40 @@ fn unwinds_on_different_threads() {
 //         forget(soul.as_ref().bind::<dyn Fn()>());
 //     }
 // }
+
+/// Regression test for Issue 01: `Soul::redeem` must wake a parked `sever` thread.
+///
+/// Before the fix, `redeem` decremented the counter without calling
+/// `atomic_wait::wake_one`, so a thread blocked inside `Soul::sever` would
+/// stay parked indefinitely.
+#[test]
+fn redeem_wakes_sever_thread() {
+    use std::sync::mpsc;
+
+    let soul: std::pin::Pin<Arc<Soul<fn()>>> = Arc::pin(Soul::new(|| {}));
+    let lich = soul.as_ref().bind::<dyn Fn()>();
+
+    // Clone the Arc so the spawned thread can call sever.
+    // Pin<Arc<T>> implements Clone because Arc<T> is Clone regardless of T,
+    // and Arc::clone never moves its heap-allocated T — the Pin invariant holds.
+    let soul_for_sever = soul.clone();
+
+    let (tx, rx) = mpsc::channel::<()>();
+
+    let handle = spawn(move || {
+        Soul::sever(soul_for_sever);
+        let _ = tx.send(());
+    });
+
+    // Give the sever thread time to enter atomic_wait::wait.
+    sleep(Duration::from_millis(30));
+
+    // Redeem the last Lich via Soul::redeem (must call wake_one after fix).
+    assert!(soul.redeem(lich).is_ok(), "lich should be bound to soul");
+
+    // Expect sever to complete promptly.
+    rx.recv_timeout(Duration::from_millis(1000))
+        .expect("sever thread should have woken up after redeem (Issue 01)");
+
+    handle.join().unwrap();
+}
