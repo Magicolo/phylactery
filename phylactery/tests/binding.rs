@@ -208,8 +208,8 @@ fn lich_display_forwards_to_inner() {
 
 /// Regression test for Issue 01: `Soul::redeem` must wake a parked `sever` thread.
 ///
-/// Before the fix, `Soul::redeem` decremented the counter without calling
-/// `atomic_wait::wake_all`, so a thread blocked inside `Soul::sever` would
+/// Before the fix, `Soul::redeem` decremented the counter without waking any
+/// parked `sever` threads, so a thread blocked inside `Soul::sever` would
 /// stay parked indefinitely.
 #[test]
 fn redeem_wakes_sever_thread() {
