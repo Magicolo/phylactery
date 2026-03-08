@@ -1,4 +1,5 @@
 #![cfg(feature = "shroud")]
+#![cfg(feature = "std")]
 
 use core::{cell::RefCell, fmt, pin::pin, time::Duration};
 use phylactery::{Lich, Soul};

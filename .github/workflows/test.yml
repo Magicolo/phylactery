@@ -27,3 +27,13 @@ jobs:
         steps:
             - uses: actions/checkout@v6
             - run: ${{ matrix.command }}
+
+    no_std:
+        runs-on: ubuntu-latest
+        container:
+            image: ghcr.io/magicolo/rust
+        steps:
+            - uses: actions/checkout@v6
+            - run: rustup target add thumbv7m-none-eabi
+            - run: cargo build --target thumbv7m-none-eabi --no-default-features
+            - run: cargo build --target thumbv7m-none-eabi --no-default-features --features shroud
