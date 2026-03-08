@@ -1,14 +1,14 @@
 use crate::{
-    lich::{Lich, decrement, increment},
+    lich::{Lich, increment},
     shroud::Shroud,
 };
 use core::{
     borrow::Borrow,
     marker::PhantomPinned,
-    mem::{ManuallyDrop, forget},
+    mem::ManuallyDrop,
     ops::Deref,
     pin::Pin,
-    ptr::{self, NonNull, drop_in_place, read},
+    ptr::{self, NonNull, read},
     sync::atomic::{AtomicU32, Ordering},
 };
 
@@ -63,12 +63,10 @@ impl<T> Soul<T> {
 
     /// Consumes the [`Soul`] and returns the owned value.
     #[must_use = "discarding the value drops it silently"]
-    pub fn consume(self) -> T {
+    pub fn into_value(self) -> T {
         // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
         // the fact that this `Soul` is unpinned.
-        let mut soul = ManuallyDrop::new(self);
-        unsafe { drop_in_place(&mut soul.count) };
-        unsafe { read(&soul.value) }
+        unsafe { read(&ManuallyDrop::new(self).value) }
     }
 }
 
@@ -100,23 +98,6 @@ impl<T: ?Sized> Soul<T> {
             .load(Ordering::Relaxed)
             .wrapping_add(1)
             .saturating_sub(1) as _
-    }
-
-    /// Disposes of a [`Lich`] that was bound to this [`Soul`].
-    ///
-    /// While not required, returning the [`Lich`]es explicitly to the [`Soul`]
-    /// ensures that they will all be dropped when the [`Soul`] is dropped.
-    ///
-    /// Returns [`Ok`] with the remaining [`Lich`] count if the [`Lich`] was
-    /// bound to this [`Soul`], else [`Err`] with the [`Lich`].
-    #[must_use = "if Err, the Lich was not redeemed and is returned"]
-    pub fn redeem<S: ?Sized>(&self, lich: Lich<S>) -> Result<usize, Lich<S>> {
-        if self.is_bound(&lich) {
-            forget(lich);
-            Ok(decrement(&self.count) as _)
-        } else {
-            Err(lich)
-        }
     }
 
     /// Ensures that all bindings to this [`Soul`] are severed, blocking the

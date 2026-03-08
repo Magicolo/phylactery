@@ -166,12 +166,9 @@ fn produces_all_combinations() {
 
 /// Regression test for Issue 03: `combinations()` must produce all 2^N subsets.
 ///
-/// The original algorithm only generates contiguous sub-slices, missing
-/// non-contiguous combinations for N ≥ 4.  E.g. for N=4 it produces 15
+/// The original algorithm only generated contiguous sub-slices, missing
+/// non-contiguous combinations for N ≥ 4.  E.g. for N=4 it produced 15
 /// subsets instead of 16, silently omitting `[a, b, d]`.
-///
-/// This test currently FAILS with the buggy implementation (15 ≠ 16).
-/// It will PASS after the fix replaces the algorithm with a correct power-set.
 #[test]
 fn combinations_produces_correct_count_for_n4() {
     // For N=4, the power set has exactly 2^4 = 16 elements.
