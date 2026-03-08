@@ -70,10 +70,10 @@ impl<T: ?Sized> Lich<T> {
         unsafe { self.count.as_ref() }
     }
 
-    fn data_ref(&self) -> Result<&T, &'static str> {
+    fn data_ref(&self) -> &T {
         // Safety: the pointers are valid for the lifetime of `self`; guaranteed by the
         // reference count.
-        Ok(unsafe { self.value.as_ref() })
+        unsafe { self.value.as_ref() }
     }
 }
 
@@ -89,7 +89,7 @@ impl<T: ?Sized> Clone for Lich<T> {
 
 impl<T: ?Sized> Borrow<T> for Lich<T> {
     fn borrow(&self) -> &T {
-        self.data_ref().unwrap()
+        self.data_ref()
     }
 }
 
@@ -97,13 +97,13 @@ impl<T: ?Sized> Deref for Lich<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.data_ref().unwrap()
+        self.data_ref()
     }
 }
 
 impl<T: ?Sized> AsRef<T> for Lich<T> {
     fn as_ref(&self) -> &T {
-        self.data_ref().unwrap()
+        self.data_ref()
     }
 }
 
