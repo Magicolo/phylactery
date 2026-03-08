@@ -43,6 +43,7 @@ impl<T: ?Sized> Lich<T> {
     ///
     /// Returns `0` both when no Liches are bound and when the
     /// [`Soul`](crate::soul::Soul) has already been severed.
+    #[must_use]
     pub fn bindings(&self) -> usize {
         let raw = self.count_ref().load(Ordering::Relaxed);
         // `SEVERED` (`u32::MAX`) is the severed sentinel; treat it as 0 live bindings.

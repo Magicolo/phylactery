@@ -67,6 +67,7 @@ impl<T> Soul<T> {
     }
 
     /// Consumes the [`Soul`] and returns the owned value.
+    #[must_use = "discarding the value drops it silently"]
     pub fn into_value(self) -> T {
         // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
         // the fact that this `Soul` is unpinned.
@@ -79,6 +80,7 @@ impl<T: ?Sized> Soul<T> {
     ///
     /// This method can only be called on a pinned [`Soul`], to guarantee that
     /// the [`Soul`]'s memory location is fixed.
+    #[must_use = "the Lich is immediately dropped if not used"]
     pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S> {
         increment(&self.count);
         Lich {
@@ -88,6 +90,7 @@ impl<T: ?Sized> Soul<T> {
     }
 
     /// Returns `true` if the [`Lich`] is bound to this [`Soul`].
+    #[must_use]
     pub fn is_bound<S: ?Sized>(&self, lich: &Lich<S>) -> bool {
         ptr::eq(&self.count, lich.count.as_ptr())
     }
@@ -97,6 +100,7 @@ impl<T: ?Sized> Soul<T> {
     ///
     /// Returns `0` both when no Liches are bound and when the [`Soul`] has
     /// already been severed.
+    #[must_use]
     pub fn bindings(&self) -> usize {
         let raw = self.count.load(Ordering::Relaxed);
         // `SEVERED` (`u32::MAX`) is the severed sentinel; treat it as 0 live bindings.
@@ -118,6 +122,7 @@ impl<T: ?Sized> Soul<T> {
     }
 
     /// Returns the unpinned [`Soul`] if all bindings to it are severed.
+    #[must_use = "if Err, the Soul has not been severed"]
     pub fn try_sever<S: Deref<Target = Self>>(this: Pin<S>) -> Result<S, Pin<S>> {
         if sever::<false>(&this.count) {
             // Safety: `sever::<false>` returned `true`, which means the CAS
