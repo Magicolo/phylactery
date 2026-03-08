@@ -108,7 +108,7 @@ fn soul_lich_drop_is_synchronized() {
             called_clone.store(true, Ordering::Release);
         };
 
-        let soul: Pin<std::boxed::Box<Soul<_>>> = std::boxed::Box::pin(Soul::new(writer));
+        let soul: Pin<Box<Soul<_>>> = Box::pin(Soul::new(writer));
         let lich = soul.as_ref().bind::<dyn Fn() + Send + Sync>();
 
         let handle = thread::spawn(move || {
@@ -125,4 +125,3 @@ fn soul_lich_drop_is_synchronized() {
         assert!(called.load(Ordering::Acquire));
     });
 }
-
