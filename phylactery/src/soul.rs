@@ -62,6 +62,7 @@ impl<T> Soul<T> {
     }
 
     /// Consumes the [`Soul`] and returns the owned value.
+    #[must_use = "discarding the value drops it silently"]
     pub fn consume(self) -> T {
         // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
         // the fact that this `Soul` is unpinned.
@@ -76,6 +77,7 @@ impl<T: ?Sized> Soul<T> {
     ///
     /// This method can only be called on a pinned [`Soul`], to guarantee that
     /// the [`Soul`]'s memory location is fixed.
+    #[must_use = "the Lich is immediately dropped if not used"]
     pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S> {
         increment(&self.count);
         Lich {
@@ -85,12 +87,14 @@ impl<T: ?Sized> Soul<T> {
     }
 
     /// Returns `true` if the [`Lich`] is bound to this [`Soul`].
+    #[must_use]
     pub fn is_bound<S: ?Sized>(&self, lich: &Lich<S>) -> bool {
         ptr::eq(&self.count, lich.count.as_ptr())
     }
 
     /// Returns the number of [`Lich`]es that are currently bound to this
     /// [`Soul`].
+    #[must_use]
     pub fn bindings(&self) -> usize {
         self.count
             .load(Ordering::Relaxed)
@@ -105,6 +109,7 @@ impl<T: ?Sized> Soul<T> {
     ///
     /// Returns [`Ok`] with the remaining [`Lich`] count if the [`Lich`] was
     /// bound to this [`Soul`], else [`Err`] with the [`Lich`].
+    #[must_use = "if Err, the Lich was not redeemed and is returned"]
     pub fn redeem<S: ?Sized>(&self, lich: Lich<S>) -> Result<usize, Lich<S>> {
         if self.is_bound(&lich) {
             forget(lich);
@@ -127,6 +132,7 @@ impl<T: ?Sized> Soul<T> {
     }
 
     /// Returns the unpinned [`Soul`] if all bindings to it are severed.
+    #[must_use = "if Err, the Soul has not been severed"]
     pub fn try_sever<S: Deref<Target = Self>>(this: Pin<S>) -> Result<S, Pin<S>> {
         if sever::<false>(&this.count) {
             // Safety: all bindings have been severed, guaranteed by `B::sever`.

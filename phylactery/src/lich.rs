@@ -39,6 +39,7 @@ unsafe impl<T: ?Sized> Sync for Lich<T> where for<'a> &'a T: Sync {}
 impl<T: ?Sized> Lich<T> {
     /// Returns the number of `Lich`es that are currently bound to the
     /// [`Soul`](crate::soul::Soul).
+    #[must_use]
     pub fn bindings(&self) -> usize {
         self.count_ref()
             .load(Ordering::Relaxed)
