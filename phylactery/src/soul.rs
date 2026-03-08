@@ -8,7 +8,7 @@ use core::{
     mem::ManuallyDrop,
     ops::Deref,
     pin::Pin,
-    ptr::{self, NonNull, drop_in_place, read},
+    ptr::{self, NonNull, read},
     sync::atomic::{AtomicU32, Ordering},
 };
 
@@ -62,12 +62,10 @@ impl<T> Soul<T> {
     }
 
     /// Consumes the [`Soul`] and returns the owned value.
-    pub fn consume(self) -> T {
+    pub fn into_value(self) -> T {
         // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
         // the fact that this `Soul` is unpinned.
-        let mut soul = ManuallyDrop::new(self);
-        unsafe { drop_in_place(&mut soul.count) };
-        unsafe { read(&soul.value) }
+        unsafe { read(&ManuallyDrop::new(self).value) }
     }
 }
 
