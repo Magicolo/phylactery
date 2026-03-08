@@ -1,5 +1,6 @@
 use core::{
     borrow::Borrow,
+    mem::forget,
     ops::Deref,
     ptr::NonNull,
     sync::atomic::{AtomicU32, Ordering},
@@ -42,6 +43,25 @@ impl<T: ?Sized> Lich<T> {
             .load(Ordering::Relaxed)
             .wrapping_add(1)
             .saturating_sub(1) as _
+    }
+
+    pub fn redeem(self) -> usize {
+        // Safety: this `Lich` is no longer externally reachable and is
+        // `forget(self)` to prevent `drop` from double redeeming.
+        let count = unsafe { self.redeem_unchecked() };
+        forget(self);
+        count
+    }
+
+    /// Safety: must be called only once for this `Lich` when is became
+    /// unreachable.
+    unsafe fn redeem_unchecked(&self) -> usize {
+        let count = self.count_ref();
+        let remain = decrement(count);
+        if remain == 0 {
+            atomic_wait::wake_one(count);
+        }
+        remain as _
     }
 
     fn count_ref(&self) -> &AtomicU32 {
@@ -89,10 +109,9 @@ impl<T: ?Sized> AsRef<T> for Lich<T> {
 
 impl<T: ?Sized> Drop for Lich<T> {
     fn drop(&mut self) {
-        let count = self.count_ref();
-        if decrement(self.count_ref()) == 0 {
-            atomic_wait::wake_one(count);
-        }
+        // Safety: this `Lich` is no longer externally reachable since it is being
+        // dropped.
+        unsafe { self.redeem_unchecked() };
     }
 }
 
