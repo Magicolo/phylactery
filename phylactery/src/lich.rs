@@ -1,5 +1,6 @@
 use core::{
     borrow::Borrow,
+    fmt,
     mem::forget,
     ops::Deref,
     ptr::NonNull,
@@ -115,6 +116,21 @@ impl<T: ?Sized> Deref for Lich<T> {
 impl<T: ?Sized> AsRef<T> for Lich<T> {
     fn as_ref(&self) -> &T {
         self.data_ref()
+    }
+}
+
+impl<T: fmt::Debug + ?Sized> fmt::Debug for Lich<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Lich")
+            .field("value", &self.data_ref())
+            .field("bindings", &self.bindings())
+            .finish()
+    }
+}
+
+impl<T: fmt::Display + ?Sized> fmt::Display for Lich<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.data_ref(), f)
     }
 }
 
