@@ -125,7 +125,13 @@ fn combinations<T>(items: &[T]) -> Vec<Vec<&T>> {
         let group: Vec<&T> = items
             .iter()
             .enumerate()
-            .filter_map(|(i, item)| if mask & (1 << i) != 0 { Some(item) } else { None })
+            .filter_map(|(i, item)| {
+                if mask & (1 << i) != 0 {
+                    Some(item)
+                } else {
+                    None
+                }
+            })
             .collect();
         groups.push(group);
     }
@@ -134,19 +140,25 @@ fn combinations<T>(items: &[T]) -> Vec<Vec<&T>> {
 
 #[test]
 fn produces_all_combinations() {
-    for n in 0..=4usize {
-        let items: Vec<usize> = (0..n).collect();
+    for count in 0..=10usize {
+        let items: Vec<usize> = (0..count).collect();
         let result = combinations(&items);
-        assert_eq!(result.len(), 1 << n, "wrong count for n={n}");
-        for mask in 0..(1usize << n) {
+        assert_eq!(result.len(), 1 << count, "wrong count for n={count}");
+        for mask in 0..(1usize << count) {
             let expected: Vec<&usize> = items
                 .iter()
                 .enumerate()
-                .filter_map(|(i, x)| if mask & (1 << i) != 0 { Some(x) } else { None })
+                .filter_map(|(index, item)| {
+                    if mask & (1 << index) != 0 {
+                        Some(item)
+                    } else {
+                        None
+                    }
+                })
                 .collect();
             assert!(
                 result.contains(&expected),
-                "missing subset {mask:b} for n={n}"
+                "missing subset {mask:b} for n={count}"
             );
         }
     }
@@ -170,7 +182,8 @@ fn combinations_produces_correct_count_for_n4() {
         "combinations() produced {} subsets for N=4, expected 16 (Issue 03)",
         result.len()
     );
-    // Specifically, the non-contiguous subset [a, b, d] (skipping c) must be present.
+    // Specifically, the non-contiguous subset [a, b, d] (skipping c) must be
+    // present.
     let char_a = &'a';
     let char_b = &'b';
     let char_d = &'d';
