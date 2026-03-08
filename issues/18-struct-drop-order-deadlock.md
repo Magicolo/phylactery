@@ -35,6 +35,26 @@ struct State {
 // soul.drop() blocks waiting for lich, but lich hasn't dropped yet → DEADLOCK
 ```
 
+### Confirmed reproduction
+
+The deadlock condition has been confirmed and reproduced.  See
+`phylactery/examples/issue_18_struct_drop_order.rs` for a runnable example:
+
+```bash
+cargo run --example issue_18_struct_drop_order --features shroud
+# Output:
+# WrongOrder — soul.bindings() before drop: 1
+#   (soul > 0 means soul.drop() will block waiting for lich)
+# CorrectOrder — dropping...
+# CorrectOrder — dropped successfully!
+```
+
+The example demonstrates:
+1. **Wrong order** (`soul` before `lich`): `soul.bindings() == 1` at drop time, confirming that the Soul's Drop would block waiting for the Lich that hasn't yet been dropped.
+2. **Correct order** (`lich` before `soul`): The struct drops cleanly.
+
+Note: the example avoids the actual hang by manually destructuring the struct before drop.  In a real program, simply declaring `soul` before `lich` in a struct and dropping the struct would deadlock the thread permanently.
+
 ## Affected Code Paths
 
 This affects any struct where:

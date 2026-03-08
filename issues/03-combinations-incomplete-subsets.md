@@ -65,6 +65,31 @@ Input: `['a', 'b', 'c', 'd']`
 
 **Missing:**  `[a,b,d]`  (and more for N ≥ 5)
 
+### Confirmed reproduction
+
+The bug has been confirmed.  See `phylactery/examples/issue_03_combinations_incomplete.rs`:
+
+```bash
+cargo run --example issue_03_combinations_incomplete
+# Output:
+# Buggy implementation produces: 15
+# MISSING subset: ['a', 'b', 'd']
+# N=4: expected=16, got=15  [BUG]
+# N=5: expected=32, got=26  [BUG]
+```
+
+A regression test `combinations_produces_correct_count_for_n4` has been added to
+`phylactery_macro/src/shroud.rs`.  It currently **fails**:
+
+```
+FAILED: combinations() produced 15 subsets for N=4, expected 16 (Issue 03)
+```
+
+```bash
+cargo test -p phylactery_macro combinations_produces_correct_count_for_n4
+# FAILED — 15 ≠ 16
+```
+
 ### The existing test encodes the wrong expectation
 
 The test at line 160-179 *asserts the buggy output*:

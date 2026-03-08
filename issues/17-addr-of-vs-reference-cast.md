@@ -92,13 +92,39 @@ From the Rust Reference and Nomicon:
 in theory violate the aliasing rules for `UnsafeCell` fields.  `addr_of!`
 avoids this concern.
 
-### Current behaviour in Miri
+### Investigation result: No immediate UB detected by Miri
 
-Miri with the current Stacked Borrows model does not flag the existing code
-because reading through the resulting pointer is valid.  However, the Tree
-Borrows model (which may replace Stacked Borrows) has different rules around
-raw pointers derived from shared references.  Switching to `addr_of!` future-
-proofs the code against stricter interpretations.
+The example `phylactery/examples/issue_17_addr_of_miri.rs` was run under both
+Miri models:
+
+```bash
+# Stacked Borrows (default):
+cargo +nightly miri run --example issue_17_addr_of_miri --features shroud
+# → no error
+
+# Tree Borrows:
+MIRIFLAGS="-Zmiri-tree-borrows" cargo +nightly miri run \
+  --example issue_17_addr_of_miri --features shroud
+# → no error
+```
+
+**Conclusion:** Neither Miri model currently flags the `&self.field as *const _
+as *mut _` pattern in the code as it stands today.  This is because the
+resulting pointer is only ever used to produce `&T` (read-only access), so the
+Stacked/Tree Borrows models accept it.
+
+**The issue is a code quality / future-proofing concern**, not an active bug:
+- The pattern is technically valid today but non-idiomatic.
+- Using `addr_of!` is the Nomicon-recommended way to obtain a raw pointer to a
+  field without creating an intermediate reference, especially for fields that
+  may contain `UnsafeCell`.
+- If the code were ever changed to write through the pointer (e.g., for a field
+  behind `UnsafeCell`), the reference-based cast would become unsound while
+  `addr_of!` would remain correct.
+
+**Recommendation:** Preserve the issue as a code-quality refactor rather than
+closing it as a false positive.  The fix is low-risk and makes the code more
+robust against future modifications.
 
 ## Plan to Fix
 

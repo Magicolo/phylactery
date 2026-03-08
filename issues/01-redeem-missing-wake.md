@@ -70,33 +70,56 @@ pub fn redeem<S: ?Sized>(&self, lich: Lich<S>) -> Result<usize, Lich<S>> {
 call does **not** call `wake_one`.  If the counter reaches zero via this path,
 any thread parked in `sever` will never receive a wake-up notification.
 
+### Confirmed reproduction
+
+The bug has been confirmed to reproduce.  See
+`phylactery/examples/issue_01_redeem_deadlock.rs` for a runnable minimal
+reproduction:
+
+```bash
+cargo run --example issue_01_redeem_deadlock --features shroud
+# Output with bug present:
+# redeem succeeded, remaining bindings = 0
+# BUG REPRODUCED: sever thread is still parked after redeem
+```
+
+A regression test has been added to `phylactery/tests/binding.rs`
+(`redeem_wakes_sever_thread`).  It currently **fails** (timeout after 1 second)
+and will pass once `redeem` calls `wake_one` when the count reaches zero.
+
+```bash
+cargo test redeem_wakes_sever_thread --features shroud
+# FAILED (Timeout) with the bug present
+```
+
 ### Minimal reproduction
 
 ```rust
-use std::{sync::Arc, thread, pin::Pin};
+use std::{sync::Arc, thread, time::Duration};
 use phylactery::Soul;
 
 fn main() {
-    let soul = Arc::pin(Soul::new(|| {}));
+    let soul: std::pin::Pin<Arc<Soul<fn()>>> = Arc::pin(Soul::new(|| {}));
     let lich = soul.as_ref().bind::<dyn Fn()>();
 
-    // Thread A will call sever on a clone of the Arc handle.
-    // Because count == 1 when the CAS runs, sever parks on atomic_wait::wait.
-    let soul2 = unsafe { Pin::new_unchecked(Arc::clone(&*soul)) };
+    // Clone the Arc so thread A can call sever.
+    // Pin<Arc<T>>: Clone because Arc<T>: Clone always (Arc::clone never moves T).
+    let soul_for_sever = soul.clone();
+
+    // Thread A parks in sever because count == 1.
     let handle = thread::spawn(move || {
-        Soul::sever(soul2); // blocks here forever
+        Soul::sever(soul_for_sever); // blocks here
     });
 
-    // Thread B redeems the only Lich -- decrements count to 0 but
-    // never calls wake_one, so Thread A never unblocks.
-    let _ = soul.redeem(lich); // BUG: no wake_one
+    thread::sleep(Duration::from_millis(50)); // let thread A reach wait()
 
-    handle.join().unwrap(); // hangs forever
+    // Thread B redeems the last Lich -- decrements count to 0 but
+    // NEVER calls wake_one, so thread A stays parked forever.
+    assert!(soul.redeem(lich).is_ok()); // BUG: no wake_one
+
+    handle.join().unwrap(); // hangs forever (timeout kills it in the test)
 }
 ```
-
-Note: obtaining two `Pin<Arc<Soul<T>>>` handles requires `unsafe` because
-`Soul` is `!Unpin`, but the scenario is nonetheless possible with Arc.
 
 A simpler single-threaded reproduction: Drop a `Soul` **after** all its `Lich`es
 have been redeemed.  In that case `sever` will succeed immediately via the CAS

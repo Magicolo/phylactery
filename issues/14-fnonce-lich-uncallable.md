@@ -42,6 +42,20 @@ let lich: Lich<dyn FnOnce() -> u32> = soul.as_ref().bind::<dyn FnOnce() -> u32>(
 let result = (*lich)(); // compile error: cannot call `dyn FnOnce()` by value
 ```
 
+### Confirmed reproduction
+
+The compile error has been confirmed.  A compile-fail doc test
+`can_not_call_lich_dyn_fnonce` was added to `phylactery/src/lib.rs` under the
+`fails` module.  It verifies that `(*lich)()` is rejected by the compiler:
+
+```bash
+cargo test --doc --features shroud
+# test phylactery/src/lib.rs - fails::can_not_call_lich_dyn_fnonce … ok
+```
+
+See `phylactery/examples/issue_14_fnonce_uncallable.rs` for a runnable example
+that demonstrates the usability trap (creating but not calling the Lich).
+
 The only ways to call `dyn FnOnce` are:
 - Through `Box<dyn FnOnce>` (`Box::call_once`)
 - Manually through a raw pointer

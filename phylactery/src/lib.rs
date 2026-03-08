@@ -92,4 +92,16 @@ mod fails {
         let lich = soul.as_ref().bind::<dyn Fn() + Send>();
         spawn(move || lich());
     });
+
+    // Issue 14: Lich<dyn FnOnce()> cannot be called through Deref (&T).
+    // Binding compiles; calling fails because FnOnce requires owning self.
+    fail!(can_not_call_lich_dyn_fnonce, {
+        use core::pin::pin;
+        use phylactery::Soul;
+
+        let soul = pin!(Soul::new(|| 42u32));
+        let lich = soul.as_ref().bind::<dyn FnOnce() -> u32>();
+        // compile error: cannot call `dyn FnOnce() -> u32` by value through `*`
+        let _result = (*lich)();
+    });
 }

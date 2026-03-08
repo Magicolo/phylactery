@@ -114,6 +114,26 @@ In practice this race is extremely narrow and very unlikely on x86 (TSO), but
 it is legal on ARM/POWER and would be caught by tools like Miri or LSAN under
 some schedules.
 
+### Investigation result: Not detectable by current Miri tests
+
+Running `cargo +nightly miri test --all-features` (both Stacked Borrows and
+`-Zmiri-tree-borrows`) does **not** detect the race, for two reasons:
+
+1. The race requires a specific thread interleaving (Soul frees memory between
+   Lich's `decrement` and `wake_one`) that Miri does not currently exercise
+   with the existing test cases.
+2. Miri's default memory model is closer to sequentially consistent, which
+   suppresses weak-memory reorderings.
+
+**Conclusion:** The bug cannot be reproduced with a simple runtime test on x86
+or under standard Miri.  It is a correctness issue that requires either:
+- Testing on a weakly-ordered hardware architecture (ARM/POWER).
+- Using a formal concurrency model checker (e.g., `loom`, `cerberus`, or `rcmc`).
+
+The issue is therefore **preserved as a genuine concern** backed by memory model
+analysis.  The fix (using `Release` ordering in `decrement`) is correct
+regardless of whether the bug manifests in practice.
+
 ### Why the current tests pass
 
 - The test suite runs on x86 where processor ordering effectively prevents this
