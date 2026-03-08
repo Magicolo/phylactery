@@ -111,7 +111,7 @@ impl<T: ?Sized> AsRef<T> for Lich<T> {
 impl<T: fmt::Debug + ?Sized> fmt::Debug for Lich<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Lich")
-            .field("value", &self.data_ref().unwrap())
+            .field("value", &self.data_ref())
             .field("bindings", &self.bindings())
             .finish()
     }
@@ -119,7 +119,7 @@ impl<T: fmt::Debug + ?Sized> fmt::Debug for Lich<T> {
 
 impl<T: fmt::Display + ?Sized> fmt::Display for Lich<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self.data_ref().unwrap(), f)
+        fmt::Display::fmt(self.data_ref(), f)
     }
 }
 
