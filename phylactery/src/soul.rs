@@ -1,11 +1,11 @@
 use crate::{
-    lich::{Lich, decrement, increment},
+    lich::{Lich, increment},
     shroud::Shroud,
 };
 use core::{
     borrow::Borrow,
     marker::PhantomPinned,
-    mem::{ManuallyDrop, forget},
+    mem::ManuallyDrop,
     ops::Deref,
     pin::Pin,
     ptr::{self, NonNull, drop_in_place, read},
@@ -96,22 +96,6 @@ impl<T: ?Sized> Soul<T> {
             .load(Ordering::Relaxed)
             .wrapping_add(1)
             .saturating_sub(1) as _
-    }
-
-    /// Disposes of a [`Lich`] that was bound to this [`Soul`].
-    ///
-    /// While not required, returning the [`Lich`]es explicitly to the [`Soul`]
-    /// ensures that they will all be dropped when the [`Soul`] is dropped.
-    ///
-    /// Returns [`Ok`] with the remaining [`Lich`] count if the [`Lich`] was
-    /// bound to this [`Soul`], else [`Err`] with the [`Lich`].
-    pub fn redeem<S: ?Sized>(&self, lich: Lich<S>) -> Result<usize, Lich<S>> {
-        if self.is_bound(&lich) {
-            forget(lich);
-            Ok(decrement(&self.count) as _)
-        } else {
-            Err(lich)
-        }
     }
 
     /// Ensures that all bindings to this [`Soul`] are severed, blocking the

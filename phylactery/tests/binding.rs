@@ -44,7 +44,7 @@ fn has_bindings() {
     drop(lich1);
     assert_eq!(soul.bindings(), 1);
     assert_eq!(lich2.bindings(), 1);
-    assert!(soul.redeem(lich2).is_ok());
+    assert_eq!(lich2.redeem(), 0);
     assert_eq!(soul.bindings(), 0);
 }
 
@@ -62,25 +62,15 @@ fn can_clone_lich() {
     let soul = Box::pin(Soul::new(|| {}));
     let lich1 = soul.as_ref().bind::<dyn Fn()>();
     let lich2 = lich1.clone();
-    assert!(soul.redeem(lich1).is_ok());
-    assert!(soul.redeem(lich2).is_ok());
+    assert_eq!(lich1.redeem(), 1);
+    assert_eq!(lich2.redeem(), 0);
 }
 
 #[test]
 fn can_redeem_bound_lich() {
     let soul = Box::pin(Soul::new(|| {}));
     let lich = soul.as_ref().bind::<dyn Fn()>();
-    assert!(soul.redeem(lich).is_ok());
-}
-
-#[test]
-fn can_not_redeem_other_lich() {
-    let soul1 = Box::pin(Soul::new(|| {}));
-    let soul2 = Box::pin(Soul::new(|| {}));
-    let lich1 = soul1.as_ref().bind::<dyn Fn()>();
-    let lich2 = soul2.as_ref().bind::<dyn Fn()>();
-    assert!(soul1.redeem(lich2).is_err());
-    assert!(soul2.redeem(lich1).is_err());
+    assert_eq!(lich.redeem(), 0);
 }
 
 #[test]
@@ -89,9 +79,9 @@ fn can_redeem_in_any_order() {
     let lich1 = soul.as_ref().bind::<dyn Fn()>();
     let lich2 = soul.as_ref().bind::<dyn Fn()>();
     let lich3 = lich2.clone();
-    assert!(soul.redeem(lich3).is_ok());
-    assert!(soul.redeem(lich2).is_ok());
-    assert!(soul.redeem(lich1).is_ok());
+    assert_eq!(lich3.redeem(), 2);
+    assert_eq!(lich2.redeem(), 1);
+    assert_eq!(lich1.redeem(), 0);
 }
 
 #[test]
@@ -195,10 +185,10 @@ fn unwinds_on_different_threads() {
 //     }
 // }
 
-/// Regression test for Issue 01: `Soul::redeem` must wake a parked `sever` thread.
+/// Regression test for Issue 01: `Lich::redeem` must wake a parked `sever` thread.
 ///
-/// Before the fix, `redeem` decremented the counter without calling
-/// `atomic_wait::wake_one`, so a thread blocked inside `Soul::sever` would
+/// Before the fix, `Soul::redeem` decremented the counter without calling
+/// `atomic_wait::wake_all`, so a thread blocked inside `Soul::sever` would
 /// stay parked indefinitely.
 #[test]
 fn redeem_wakes_sever_thread() {
@@ -222,8 +212,8 @@ fn redeem_wakes_sever_thread() {
     // Give the sever thread time to enter atomic_wait::wait.
     sleep(Duration::from_millis(30));
 
-    // Redeem the last Lich via Soul::redeem (must call wake_one after fix).
-    assert!(soul.redeem(lich).is_ok(), "lich should be bound to soul");
+    // Redeem the last Lich via Lich::redeem (calls wake_all when count reaches 0).
+    assert_eq!(lich.redeem(), 0, "lich should be the last binding");
 
     // Expect sever to complete promptly.
     rx.recv_timeout(Duration::from_millis(1000))

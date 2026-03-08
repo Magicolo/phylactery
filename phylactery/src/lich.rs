@@ -45,6 +45,17 @@ impl<T: ?Sized> Lich<T> {
             .saturating_sub(1) as _
     }
 
+    /// Disposes of this [`Lich`], decrementing the binding count for its
+    /// parent [`Soul`](crate::soul::Soul).
+    ///
+    /// This is equivalent to dropping the [`Lich`] but explicitly returns the
+    /// remaining number of live [`Lich`]es. Any thread that is blocked in
+    /// [`Soul::sever`](crate::soul::Soul::sever) or
+    /// [`Soul::drop`](crate::soul::Soul) waiting for the count to reach zero
+    /// will be woken if this was the last [`Lich`].
+    ///
+    /// Returns the number of [`Lich`]es still bound to the
+    /// [`Soul`](crate::soul::Soul) after this one is redeemed.
     pub fn redeem(self) -> usize {
         // Safety: this `Lich` is no longer externally reachable and is
         // `forget(self)` to prevent `drop` from double redeeming.
@@ -59,7 +70,7 @@ impl<T: ?Sized> Lich<T> {
         let count = self.count_ref();
         let remain = decrement(count);
         if remain == 0 {
-            atomic_wait::wake_one(count);
+            atomic_wait::wake_all(count);
         }
         remain as _
     }
