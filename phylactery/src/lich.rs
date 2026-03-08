@@ -51,8 +51,8 @@ impl<T: ?Sized> Lich<T> {
     ///
     /// This is equivalent to dropping the [`Lich`] but explicitly returns the
     /// remaining number of live [`Lich`]es. Any thread that is blocked in
-    /// [`Soul::sever`](crate::soul::Soul::sever) or
-    /// [`Soul::drop`](crate::soul::Soul) waiting for the count to reach zero
+    /// [`Soul::sever`](crate::soul::Soul::sever) or dropping the
+    /// [`Soul`](crate::soul::Soul) waiting for the count to reach zero
     /// will be woken if this was the last [`Lich`].
     ///
     /// Returns the number of [`Lich`]es still bound to the
