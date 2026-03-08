@@ -1,6 +1,6 @@
 #![cfg(feature = "shroud")]
 
-use core::{cell::RefCell, pin::pin, time::Duration};
+use core::{cell::RefCell, fmt, pin::pin, time::Duration};
 use phylactery::{Lich, Soul};
 use std::{
     rc::Rc,
@@ -44,7 +44,7 @@ fn has_bindings() {
     drop(lich1);
     assert_eq!(soul.bindings(), 1);
     assert_eq!(lich2.bindings(), 1);
-    assert!(soul.redeem(lich2).is_ok());
+    assert_eq!(lich2.redeem(), 0);
     assert_eq!(soul.bindings(), 0);
 }
 
@@ -62,25 +62,15 @@ fn can_clone_lich() {
     let soul = Box::pin(Soul::new(|| {}));
     let lich1 = soul.as_ref().bind::<dyn Fn()>();
     let lich2 = lich1.clone();
-    assert!(soul.redeem(lich1).is_ok());
-    assert!(soul.redeem(lich2).is_ok());
+    assert_eq!(lich1.redeem(), 1);
+    assert_eq!(lich2.redeem(), 0);
 }
 
 #[test]
 fn can_redeem_bound_lich() {
     let soul = Box::pin(Soul::new(|| {}));
     let lich = soul.as_ref().bind::<dyn Fn()>();
-    assert!(soul.redeem(lich).is_ok());
-}
-
-#[test]
-fn can_not_redeem_other_lich() {
-    let soul1 = Box::pin(Soul::new(|| {}));
-    let soul2 = Box::pin(Soul::new(|| {}));
-    let lich1 = soul1.as_ref().bind::<dyn Fn()>();
-    let lich2 = soul2.as_ref().bind::<dyn Fn()>();
-    assert!(soul1.redeem(lich2).is_err());
-    assert!(soul2.redeem(lich1).is_err());
+    assert_eq!(lich.redeem(), 0);
 }
 
 #[test]
@@ -89,9 +79,9 @@ fn can_redeem_in_any_order() {
     let lich1 = soul.as_ref().bind::<dyn Fn()>();
     let lich2 = soul.as_ref().bind::<dyn Fn()>();
     let lich3 = lich2.clone();
-    assert!(soul.redeem(lich3).is_ok());
-    assert!(soul.redeem(lich2).is_ok());
-    assert!(soul.redeem(lich1).is_ok());
+    assert_eq!(lich3.redeem(), 2);
+    assert_eq!(lich2.redeem(), 1);
+    assert_eq!(lich1.redeem(), 0);
 }
 
 #[test]
@@ -195,16 +185,37 @@ fn unwinds_on_different_threads() {
 //     }
 // }
 
+#[test]
+fn lich_debug_shows_value_and_bindings() {
+    let soul = Box::pin(Soul::new(42_i32));
+    let lich = soul.as_ref().bind::<dyn fmt::Debug>();
+    let debug = format!("{lich:?}");
+    assert!(debug.contains("Lich"), "Debug output should contain 'Lich': {debug}");
+    assert!(debug.contains("42"), "Debug output should contain the value '42': {debug}");
+    assert!(
+        debug.contains("bindings"),
+        "Debug output should contain 'bindings': {debug}"
+    );
+}
+
+#[test]
+fn lich_display_forwards_to_inner() {
+    let soul = Box::pin(Soul::new(42_i32));
+    let lich = soul.as_ref().bind::<dyn fmt::Display>();
+    let display = format!("{lich}");
+    assert_eq!(display, "42");
+}
+
 /// Regression test for Issue 01: `Soul::redeem` must wake a parked `sever` thread.
 ///
-/// Before the fix, `redeem` decremented the counter without calling
-/// `atomic_wait::wake_one`, so a thread blocked inside `Soul::sever` would
+/// Before the fix, `Soul::redeem` decremented the counter without waking any
+/// parked `sever` threads, so a thread blocked inside `Soul::sever` would
 /// stay parked indefinitely.
 #[test]
 fn redeem_wakes_sever_thread() {
     use std::sync::mpsc;
 
-    let soul: std::pin::Pin<Arc<Soul<fn()>>> = Arc::pin(Soul::new(|| {}));
+    let soul = Arc::pin(Soul::new(|| {}));
     let lich = soul.as_ref().bind::<dyn Fn()>();
 
     // Clone the Arc so the spawned thread can call sever.
@@ -222,12 +233,57 @@ fn redeem_wakes_sever_thread() {
     // Give the sever thread time to enter atomic_wait::wait.
     sleep(Duration::from_millis(30));
 
-    // Redeem the last Lich via Soul::redeem (must call wake_one after fix).
-    assert!(soul.redeem(lich).is_ok(), "lich should be bound to soul");
+    // Redeem the last Lich via Lich::redeem (calls wake_all when count reaches 0).
+    assert_eq!(lich.redeem(), 0, "lich should be the last binding");
 
     // Expect sever to complete promptly.
     rx.recv_timeout(Duration::from_millis(1000))
         .expect("sever thread should have woken up after redeem (Issue 01)");
 
     handle.join().unwrap();
+}
+
+/// Regression test: `wake_all` must unblock *all* threads parked in `Soul::sever`,
+/// not just one. If `wake_one` were used instead, only one of the sever threads
+/// would be released and the others would park indefinitely.
+#[test]
+fn redeem_wakes_all_sever_threads() {
+    use std::sync::mpsc;
+
+    const SEVER_THREADS: usize = 4;
+
+    let soul = Arc::pin(Soul::new(|| {}));
+    let lich = soul.as_ref().bind::<dyn Fn()>();
+
+    let (tx, rx) = mpsc::channel::<()>();
+
+    // Spawn multiple threads, each calling Soul::sever on its own clone of the Arc.
+    let handles: Vec<_> = (0..SEVER_THREADS)
+        .map(|_| {
+            let soul_clone = soul.clone();
+            let tx_clone = tx.clone();
+            spawn(move || {
+                Soul::sever(soul_clone);
+                let _ = tx_clone.send(());
+            })
+        })
+        .collect();
+    // Drop the original sender so the channel closes when all sever threads finish.
+    drop(tx);
+
+    // Give all sever threads time to enter atomic_wait::wait.
+    sleep(Duration::from_millis(30));
+
+    // Redeem the last Lich; wake_all must unblock every sever thread.
+    assert_eq!(lich.redeem(), 0, "lich should be the last binding");
+
+    // Every sever thread must complete within a generous deadline.
+    for _ in 0..SEVER_THREADS {
+        rx.recv_timeout(Duration::from_millis(1000))
+            .expect("a sever thread was not woken after redeem (wake_all regression)");
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
 }

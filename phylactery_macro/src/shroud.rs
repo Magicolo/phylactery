@@ -118,75 +118,57 @@ fn join<S: AsRef<str>, I: AsRef<str>>(separator: S, items: impl IntoIterator<Ite
     buffer
 }
 
-fn combinations<T>(mut items: &[T]) -> Vec<Vec<&T>> {
-    let mut groups = Vec::with_capacity(items.len() * items.len());
-    groups.push(Vec::new());
-    while let Some((head, tail)) = items.split_first() {
-        groups.push(vec![head]);
-        for size in 1..=tail.len() {
-            for index in 0..=tail.len() - size {
-                let mut group = Vec::with_capacity(size + 1);
-                group.push(head);
-                group.extend(&tail[index..index + size]);
-                groups.push(group);
-            }
-        }
-        items = tail;
+fn combinations<T>(items: &[T]) -> Vec<Vec<&T>> {
+    let count = 1usize << items.len();
+    let mut groups = Vec::with_capacity(count);
+    for mask in 0..count {
+        let group: Vec<&T> = items
+            .iter()
+            .enumerate()
+            .filter_map(|(i, item)| {
+                if mask & (1 << i) != 0 {
+                    Some(item)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        groups.push(group);
     }
     groups
 }
 
 #[test]
 fn produces_all_combinations() {
-    assert_eq!(combinations::<usize>(&[]), vec![vec![&0usize; 0]]);
-    assert_eq!(combinations(&['a']), vec![vec![], vec![&'a']]);
-    assert_eq!(
-        combinations(&['a', 'b']),
-        vec![vec![], vec![&'a'], vec![&'a', &'b'], vec![&'b']]
-    );
-    assert_eq!(
-        combinations(&['a', 'b', 'c']),
-        vec![
-            vec![],
-            vec![&'a'],
-            vec![&'a', &'b'],
-            vec![&'a', &'c'],
-            vec![&'a', &'b', &'c'],
-            vec![&'b'],
-            vec![&'b', &'c'],
-            vec![&'c']
-        ]
-    );
-    assert_eq!(
-        combinations(&['a', 'b', 'c', 'd']),
-        vec![
-            vec![],
-            vec![&'a'],
-            vec![&'a', &'b'],
-            vec![&'a', &'c'],
-            vec![&'a', &'d'],
-            vec![&'a', &'b', &'c'],
-            vec![&'a', &'c', &'d'],
-            vec![&'a', &'b', &'c', &'d'],
-            vec![&'b'],
-            vec![&'b', &'c'],
-            vec![&'b', &'d'],
-            vec![&'b', &'c', &'d'],
-            vec![&'c'],
-            vec![&'c', &'d'],
-            vec![&'d']
-        ]
-    );
+    for count in 0..=10usize {
+        let items: Vec<usize> = (0..count).collect();
+        let result = combinations(&items);
+        assert_eq!(result.len(), 1 << count, "wrong count for n={count}");
+        for mask in 0..(1usize << count) {
+            let expected: Vec<&usize> = items
+                .iter()
+                .enumerate()
+                .filter_map(|(index, item)| {
+                    if mask & (1 << index) != 0 {
+                        Some(item)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            assert!(
+                result.contains(&expected),
+                "missing subset {mask:b} for n={count}"
+            );
+        }
+    }
 }
 
 /// Regression test for Issue 03: `combinations()` must produce all 2^N subsets.
 ///
-/// The original algorithm only generates contiguous sub-slices, missing
-/// non-contiguous combinations for N ≥ 4.  E.g. for N=4 it produces 15
+/// The original algorithm only generated contiguous sub-slices, missing
+/// non-contiguous combinations for N ≥ 4.  E.g. for N=4 it produced 15
 /// subsets instead of 16, silently omitting `[a, b, d]`.
-///
-/// This test currently FAILS with the buggy implementation (15 ≠ 16).
-/// It will PASS after the fix replaces the algorithm with a correct power-set.
 #[test]
 fn combinations_produces_correct_count_for_n4() {
     // For N=4, the power set has exactly 2^4 = 16 elements.
@@ -197,7 +179,8 @@ fn combinations_produces_correct_count_for_n4() {
         "combinations() produced {} subsets for N=4, expected 16 (Issue 03)",
         result.len()
     );
-    // Specifically, the non-contiguous subset [a, b, d] (skipping c) must be present.
+    // Specifically, the non-contiguous subset [a, b, d] (skipping c) must be
+    // present.
     let char_a = &'a';
     let char_b = &'b';
     let char_d = &'d';

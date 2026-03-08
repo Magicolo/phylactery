@@ -27,11 +27,11 @@ pub(crate) fn wait(key: &AtomicU32, value: u32) {
 }
 
 #[cfg(not(loom))]
-pub(crate) fn wake_one(key: &AtomicU32) {
-    atomic_wait::wake_one(key);
+pub(crate) fn wake_all(key: &AtomicU32) {
+    atomic_wait::wake_all(key);
 }
 
 #[cfg(loom)]
-pub(crate) fn wake_one(_key: &AtomicU32) {
+pub(crate) fn wake_all(_key: &AtomicU32) {
     // Under loom, waiters spin-yield, so an explicit wake is a no-op.
 }

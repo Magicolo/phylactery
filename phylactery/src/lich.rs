@@ -1,6 +1,7 @@
 use crate::sync::{self, AtomicU32, Ordering};
 use core::{
     borrow::Borrow,
+    fmt,
     mem::forget,
     ops::Deref,
     ptr::NonNull,
@@ -45,6 +46,17 @@ impl<T: ?Sized> Lich<T> {
             .saturating_sub(1) as _
     }
 
+    /// Disposes of this [`Lich`], decrementing the binding count for its
+    /// parent [`Soul`](crate::soul::Soul).
+    ///
+    /// This is equivalent to dropping the [`Lich`] but explicitly returns the
+    /// remaining number of live [`Lich`]es. Any thread that is blocked in
+    /// [`Soul::sever`](crate::soul::Soul::sever) or dropping the
+    /// [`Soul`](crate::soul::Soul) waiting for the count to reach zero
+    /// will be woken if this was the last [`Lich`].
+    ///
+    /// Returns the number of [`Lich`]es still bound to the
+    /// [`Soul`](crate::soul::Soul) after this one is redeemed.
     pub fn redeem(self) -> usize {
         // Safety: this `Lich` is no longer externally reachable and is
         // `forget(self)` to prevent `drop` from double redeeming.
@@ -53,13 +65,13 @@ impl<T: ?Sized> Lich<T> {
         count
     }
 
-    /// Safety: must be called only once for this `Lich` when is became
+    /// Safety: must be called only once for this `Lich` when it became
     /// unreachable.
     unsafe fn redeem_unchecked(&self) -> usize {
         let count = self.count_ref();
         let remain = decrement(count);
         if remain == 0 {
-            sync::wake_one(count);
+            sync::wake_all(count);
         }
         remain as _
     }
@@ -70,10 +82,10 @@ impl<T: ?Sized> Lich<T> {
         unsafe { self.count.as_ref() }
     }
 
-    fn data_ref(&self) -> Result<&T, &'static str> {
+    fn data_ref(&self) -> &T {
         // Safety: the pointers are valid for the lifetime of `self`; guaranteed by the
         // reference count.
-        Ok(unsafe { self.value.as_ref() })
+        unsafe { self.value.as_ref() }
     }
 }
 
@@ -89,7 +101,7 @@ impl<T: ?Sized> Clone for Lich<T> {
 
 impl<T: ?Sized> Borrow<T> for Lich<T> {
     fn borrow(&self) -> &T {
-        self.data_ref().unwrap()
+        self.data_ref()
     }
 }
 
@@ -97,13 +109,28 @@ impl<T: ?Sized> Deref for Lich<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.data_ref().unwrap()
+        self.data_ref()
     }
 }
 
 impl<T: ?Sized> AsRef<T> for Lich<T> {
     fn as_ref(&self) -> &T {
-        self.data_ref().unwrap()
+        self.data_ref()
+    }
+}
+
+impl<T: fmt::Debug + ?Sized> fmt::Debug for Lich<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Lich")
+            .field("value", &self.data_ref())
+            .field("bindings", &self.bindings())
+            .finish()
+    }
+}
+
+impl<T: fmt::Display + ?Sized> fmt::Display for Lich<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self.data_ref(), f)
     }
 }
 
