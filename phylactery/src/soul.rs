@@ -9,7 +9,7 @@ use core::{
     mem::ManuallyDrop,
     ops::Deref,
     pin::Pin,
-    ptr::{self, NonNull, drop_in_place, read},
+    ptr::{self, NonNull, read},
 };
 
 /// Sentinel value written to `Soul::count` by `sever` to indicate that the
