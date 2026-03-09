@@ -212,6 +212,18 @@ fn lich_display_forwards_to_inner() {
     assert_eq!(display, "42");
 }
 
+#[test]
+fn lich_pointer_prints_address() {
+    let soul = Box::pin(Soul::new(42_i32));
+    let lich = soul.as_ref().bind::<dyn fmt::Debug>();
+    let pointer = format!("{lich:p}");
+    // fmt::Pointer output contains a hex address
+    assert!(
+        pointer.contains("0x"),
+        "Pointer output should contain '0x': {pointer}"
+    );
+}
+
 /// Regression test for Issue 01: `Soul::redeem` must wake a parked `sever`
 /// thread.
 ///

@@ -138,6 +138,38 @@ impl<T: fmt::Display + ?Sized> fmt::Display for Lich<T> {
     }
 }
 
+impl<T: ?Sized> fmt::Pointer for Lich<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Pointer::fmt(&self.value.as_ptr(), f)
+    }
+}
+
+impl<T: PartialEq + ?Sized> PartialEq for Lich<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.data_ref() == other.data_ref()
+    }
+}
+
+impl<T: Eq + ?Sized> Eq for Lich<T> {}
+
+impl<T: PartialOrd + ?Sized> PartialOrd for Lich<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        PartialOrd::partial_cmp(self.data_ref(), other.data_ref())
+    }
+}
+
+impl<T: Ord + ?Sized> Ord for Lich<T> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        Ord::cmp(self.data_ref(), other.data_ref())
+    }
+}
+
+impl<T: core::hash::Hash + ?Sized> core::hash::Hash for Lich<T> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.data_ref().hash(state);
+    }
+}
+
 impl<T: ?Sized> Drop for Lich<T> {
     fn drop(&mut self) {
         // Safety: this `Lich` is no longer externally reachable since it is being
