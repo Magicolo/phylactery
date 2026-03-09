@@ -190,6 +190,4 @@ mod implement {
     };
 
     shroud_fn!(Fn(T0, T1, T2, T3, T4, T5, T6, T7) -> T);
-    shroud_fn!(FnMut(T0, T1, T2, T3, T4, T5, T6, T7) -> T);
-    shroud_fn!(FnOnce(T0, T1, T2, T3, T4, T5, T6, T7) -> T);
 }
