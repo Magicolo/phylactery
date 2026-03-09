@@ -1,4 +1,4 @@
-<div align="center"> <h1> phylactery 2.0.9 </h1> </div>
+<div align="center"> <h1> phylactery 3.0.0 </h1> </div>
 
 <p align="center">
     <i>
@@ -67,7 +67,7 @@ pub mod thread_spawn_bridge {
 }
 
 fn main() {
-    #[cfg(feature = "shroud")]
+    #[cfg(all(feature = "shroud", feature = "std"))]
     thread_spawn_bridge::broadcast(
         std::thread::available_parallelism().unwrap_or(core::num::NonZeroUsize::MIN),
         &|index| println!("{index}"),

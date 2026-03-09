@@ -1,8 +1,10 @@
-/// Abstraction layer for synchronization primitives.
-///
-/// Under `cfg(loom)`, uses loom's model-checked replacements so that
-/// concurrency tests can explore all possible interleavings and detect
-/// memory-ordering bugs.
+/*!
+ * Abstraction layer for synchronization primitives.
+ *
+ * Under `cfg(loom)`, uses loom's model-checked replacements so that
+ * concurrency tests can explore all possible interleavings and detect
+ * memory-ordering bugs.
+ */
 
 #[cfg(not(loom))]
 pub(crate) use core::sync::atomic::{AtomicU32, Ordering};

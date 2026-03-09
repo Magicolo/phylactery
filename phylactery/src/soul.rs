@@ -31,7 +31,7 @@ pub(crate) const SEVERED: u32 = u32::MAX;
 /// section). Once pinned, [`Lich`]es can be created by calling
 /// [`bind()`](Soul::bind). If no [`Lich`]es have been created, the [`Soul`] can
 /// be unpinned and the original value retrieved with
-/// [`consume()`](Soul::consume).
+/// [`into_value()`](Soul::into_value).
 ///
 /// # Pinning
 ///
