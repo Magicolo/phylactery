@@ -9,7 +9,7 @@ use core::{
     mem::ManuallyDrop,
     ops::Deref,
     pin::Pin,
-    ptr::{self, NonNull, read},
+    ptr::{self, addr_of, NonNull, read},
 };
 
 /// Sentinel value written to `Soul::count` by `sever` to indicate that the
@@ -157,17 +157,21 @@ impl<T: ?Sized> Soul<T> {
     }
 
     fn value_ptr(self: Pin<&Self>) -> NonNull<T> {
-        // Safety: because `Soul` is pinned, it is safe to take pointers to it given
-        // that those pointers are no longer accessible if the `Soul` is dropped which
-        // is guaranteed by `<Soul as Drop>::drop`.
-        unsafe { NonNull::new_unchecked(&self.value as *const _ as _) }
+        // Safety: we use `addr_of!` to obtain a raw pointer to the field without
+        // creating an intermediate reference, preserving the raw provenance that is
+        // required for a pointer that will outlive the current borrow.  Because
+        // `Soul` is pinned, the pointer remains valid as long as the Soul lives,
+        // which is guaranteed by `<Soul as Drop>::drop`.
+        unsafe { NonNull::new_unchecked(addr_of!((*self.get_ref()).value) as *mut T) }
     }
 
     fn count_ptr(self: Pin<&Self>) -> NonNull<AtomicU32> {
-        // Safety: because `Soul` is pinned, it is safe to take pointers to it given
-        // that those pointers are no longer accessible if the `Soul` is dropped which
-        // is guaranteed by `<Soul as Drop>::drop`.
-        unsafe { NonNull::new_unchecked(&self.count as *const _ as _) }
+        // Safety: we use `addr_of!` to obtain a raw pointer to the field without
+        // creating an intermediate reference, preserving the raw provenance that is
+        // required for a pointer that will outlive the current borrow.  Because
+        // `Soul` is pinned, the pointer remains valid as long as the Soul lives,
+        // which is guaranteed by `<Soul as Drop>::drop`.
+        unsafe { NonNull::new_unchecked(addr_of!((*self.get_ref()).count) as *mut AtomicU32) }
     }
 }
 
