@@ -50,7 +50,7 @@ pub(crate) const SEVERED: u32 = u32::MAX;
 /// implementation will block the current thread until all [`Lich`]es are
 /// dropped. This behavior guarantees that no [`Lich`] can ever outlive the data
 /// it points to.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Soul<T: ?Sized> {
     _marker: PhantomPinned,
     count: AtomicU32,
@@ -146,10 +146,11 @@ impl<T: ?Sized> Soul<T> {
 
     /// # Safety
     ///
-    /// The caller must ensure that `sever` (the standalone free function in this
-    /// module) has returned `true` for this Soul's `count` field before calling
-    /// this function.  That is, all bound [`Lich`]es must have been dropped and
-    /// the `count` must have been atomically set to `u32::MAX`.
+    /// The caller must ensure that `sever` (the standalone free function in
+    /// this module) has returned `true` for this Soul's `count` field
+    /// before calling this function.  That is, all bound [`Lich`]es must
+    /// have been dropped and the `count` must have been atomically set to
+    /// `u32::MAX`.
     unsafe fn unpin<S: Deref<Target = Self>>(this: Pin<S>) -> S {
         debug_assert_eq!(this.bindings(), 0);
         // Safety: no `Lich`es are bound, the `Soul` can be unpinned.
@@ -168,6 +169,12 @@ impl<T: ?Sized> Soul<T> {
         // that those pointers are no longer accessible if the `Soul` is dropped which
         // is guaranteed by `<Soul as Drop>::drop`.
         unsafe { NonNull::new_unchecked(&self.count as *const _ as _) }
+    }
+}
+
+impl<T> From<T> for Soul<T> {
+    fn from(value: T) -> Self {
+        Self::new(value)
     }
 }
 
