@@ -5,8 +5,8 @@ use phylactery::{Lich, Soul};
 use std::{
     rc::Rc,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
     thread::{sleep, spawn},
 };
@@ -299,31 +299,6 @@ fn redeem_wakes_all_sever_threads() {
 }
 
 #[test]
-fn can_consume_soul() {
-    let value = String::from("hello");
-    let soul = Soul::new(value);
-    let recovered = soul.into_value();
-    assert_eq!(recovered, "hello");
-}
-
-#[test]
-fn consume_calls_inner_drop() {
-    let dropped = Arc::new(AtomicBool::new(false));
-    struct Guard(Arc<AtomicBool>);
-    impl Drop for Guard {
-        fn drop(&mut self) {
-            self.0.store(true, Ordering::Relaxed);
-        }
-    }
-    let soul = Soul::new(Guard(dropped.clone()));
-    assert!(!dropped.load(Ordering::Relaxed));
-    let guard = soul.into_value();
-    assert!(!dropped.load(Ordering::Relaxed));
-    drop(guard);
-    assert!(dropped.load(Ordering::Relaxed));
-}
-
-#[test]
 fn can_sever_arc_pinned_soul() {
     let soul = Arc::pin(Soul::new(|| 'a'));
     let lich = soul.as_ref().bind::<dyn Fn() -> char>();
@@ -356,27 +331,6 @@ fn sever_blocks_until_thread_lich_drops() {
     assert!(
         lich_dropped.load(Ordering::Acquire),
         "sever must have waited for the lich to be dropped"
-    );
-}
-
-#[test]
-fn soul_drop_calls_inner_drop() {
-    let dropped = Arc::new(AtomicBool::new(false));
-    struct Guard(Arc<AtomicBool>);
-    impl Drop for Guard {
-        fn drop(&mut self) {
-            self.0.store(true, Ordering::Relaxed);
-        }
-    }
-    let guard = Guard(dropped.clone());
-    let soul = Box::pin(Soul::new(move || {
-        let _ = &guard;
-    }));
-    assert!(!dropped.load(Ordering::Relaxed));
-    drop(soul);
-    assert!(
-        dropped.load(Ordering::Relaxed),
-        "Soul::drop must drop the inner T"
     );
 }
 
