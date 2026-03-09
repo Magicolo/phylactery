@@ -6,7 +6,7 @@ use core::{
     borrow::Borrow,
     marker::PhantomPinned,
     mem::ManuallyDrop,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     pin::Pin,
     ptr::{self, NonNull, read},
     sync::atomic::{AtomicU32, Ordering},
@@ -166,6 +166,12 @@ impl<T: ?Sized> Deref for Soul<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.value
+    }
+}
+
+impl<T> DerefMut for Soul<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
     }
 }
 

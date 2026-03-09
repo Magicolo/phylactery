@@ -294,3 +294,11 @@ fn redeem_wakes_all_sever_threads() {
         handle.join().unwrap();
     }
 }
+
+#[test]
+fn soul_deref_mut() {
+    let mut soul = Soul::new(42_i32);
+    assert_eq!(*soul, 42);
+    *soul = 99;
+    assert_eq!(*soul, 99);
+}

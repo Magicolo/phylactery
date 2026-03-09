@@ -130,4 +130,6 @@ Each implementation should delegate to the corresponding impl on `self.value`.
 Add tests in `tests/binding.rs` (or a new file) verifying the new impls
 compile and produce correct results.
 
+9. `DerefMut for Soul<T>` (Sized only) — delegate to `self.value`
+
 Consider also adding these impls for `Lich<T>` in a separate change (Issue 12).
