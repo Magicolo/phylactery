@@ -35,7 +35,7 @@ Safe and thin wrappers around lifetime extension to allow non-static values to c
 ///
 /// Contrary to other `scope` solutions, here, the captured reference can be
 /// returned (as a [`Soul<T>`]) while the threads continue to execute.
-#[cfg(feature = "shroud")]
+#[cfg(all(feature = "shroud", feature = "std"))]
 pub mod thread_spawn_bridge {
     use core::{num::NonZeroUsize, pin::Pin};
     use phylactery::Soul;
