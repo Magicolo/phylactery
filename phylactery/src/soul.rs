@@ -1,6 +1,7 @@
 use crate::{
     lich::{Lich, increment},
     shroud::Shroud,
+    sync::{self, AtomicU32, Ordering},
 };
 use core::{
     borrow::Borrow,
@@ -9,7 +10,6 @@ use core::{
     ops::Deref,
     pin::Pin,
     ptr::{self, NonNull, read},
-    sync::atomic::{AtomicU32, Ordering},
 };
 
 /// Sentinel value written to `Soul::count` by `sever` to indicate that the
@@ -58,7 +58,17 @@ pub struct Soul<T: ?Sized> {
 }
 
 impl<T> Soul<T> {
+    #[cfg(not(loom))]
     pub const fn new(value: T) -> Self {
+        Self {
+            value,
+            count: AtomicU32::new(0),
+            _marker: PhantomPinned,
+        }
+    }
+
+    #[cfg(loom)]
+    pub fn new(value: T) -> Self {
         Self {
             value,
             count: AtomicU32::new(0),
@@ -194,7 +204,7 @@ fn sever<const FORCE: bool>(count: &AtomicU32) -> bool {
             // so only `Ok(0)` can appear here. `Err(SEVERED)` means a concurrent `sever`
             // already completed; either way, the Soul is severed.
             Ok(0) | Err(SEVERED) => break true,
-            Ok(value) | Err(value) if FORCE => atomic_wait::wait(count, value),
+            Ok(value) | Err(value) if FORCE => sync::wait(count, value),
             Ok(_) | Err(_) => break false,
         }
     }

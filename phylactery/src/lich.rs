@@ -1,11 +1,11 @@
 use crate::soul::SEVERED;
+use crate::sync::{self, AtomicU32, Ordering};
 use core::{
     borrow::Borrow,
     fmt,
     mem::forget,
     ops::Deref,
     ptr::NonNull,
-    sync::atomic::{AtomicU32, Ordering},
 };
 
 /// A [`Lich`] acts like a `&'static T`, but its validity is dynamically tied to
@@ -75,7 +75,7 @@ impl<T: ?Sized> Lich<T> {
         let count = self.count_ref();
         let remain = decrement(count);
         if remain == 0 {
-            atomic_wait::wake_all(count);
+            sync::wake_all(count);
         }
         remain as _
     }
@@ -165,7 +165,7 @@ pub(crate) fn increment(count: &AtomicU32) -> u32 {
 }
 
 pub(crate) fn decrement(count: &AtomicU32) -> u32 {
-    match count.fetch_sub(1, Ordering::Relaxed) {
+    match count.fetch_sub(1, Ordering::Release) {
         0 | SEVERED => unreachable!(),
         value => value - 1,
     }
