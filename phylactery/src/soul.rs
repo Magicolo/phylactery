@@ -12,6 +12,11 @@ use core::{
     ptr::{self, NonNull, drop_in_place, read},
 };
 
+/// Sentinel value written to `Soul::count` by `sever` to indicate that the
+/// Soul has been permanently deactivated. `u32::MAX - 1` is the maximum
+/// number of live Liches; `u32::MAX` is reserved as the dead state.
+pub(crate) const SEVERED: u32 = u32::MAX;
+
 /// The owner of a value whose lifetime is dynamically extended.
 ///
 /// A `Soul` is the anchor for a set of [`Lich`] pointers. It takes ownership of
@@ -72,12 +77,11 @@ impl<T> Soul<T> {
     }
 
     /// Consumes the [`Soul`] and returns the owned value.
-    pub fn consume(self) -> T {
+    #[must_use = "discarding the value drops it silently"]
+    pub fn into_value(self) -> T {
         // No need to run `<Soul as Drop>::drop` since no `Lich` can be bound, given by
         // the fact that this `Soul` is unpinned.
-        let mut soul = ManuallyDrop::new(self);
-        unsafe { drop_in_place(&mut soul.count) };
-        unsafe { read(&soul.value) }
+        unsafe { read(&ManuallyDrop::new(self).value) }
     }
 }
 
@@ -86,6 +90,7 @@ impl<T: ?Sized> Soul<T> {
     ///
     /// This method can only be called on a pinned [`Soul`], to guarantee that
     /// the [`Soul`]'s memory location is fixed.
+    #[must_use = "the Lich is immediately dropped if not used"]
     pub fn bind<S: Shroud<T> + ?Sized>(self: Pin<&Self>) -> Lich<S> {
         increment(&self.count);
         Lich {
@@ -95,17 +100,21 @@ impl<T: ?Sized> Soul<T> {
     }
 
     /// Returns `true` if the [`Lich`] is bound to this [`Soul`].
+    #[must_use]
     pub fn is_bound<S: ?Sized>(&self, lich: &Lich<S>) -> bool {
         ptr::eq(&self.count, lich.count.as_ptr())
     }
 
     /// Returns the number of [`Lich`]es that are currently bound to this
     /// [`Soul`].
+    ///
+    /// Returns `0` both when no Liches are bound and when the [`Soul`] has
+    /// already been severed.
+    #[must_use]
     pub fn bindings(&self) -> usize {
-        self.count
-            .load(Ordering::Relaxed)
-            .wrapping_add(1)
-            .saturating_sub(1) as _
+        let raw = self.count.load(Ordering::Relaxed);
+        // `SEVERED` (`u32::MAX`) is the severed sentinel; treat it as 0 live bindings.
+        raw.wrapping_add(1).saturating_sub(1) as _
     }
 
     /// Ensures that all bindings to this [`Soul`] are severed, blocking the
@@ -113,7 +122,9 @@ impl<T: ?Sized> Soul<T> {
     /// [`Soul`] on completion.
     pub fn sever<S: Deref<Target = Self>>(this: Pin<S>) -> S {
         if sever::<true>(&this.count) {
-            // Safety: all bindings have been severed, guaranteed by `B::sever`.
+            // Safety: `sever::<true>` returned `true`, which guarantees the atomic
+            // count has been set to `u32::MAX` and all previously live Liches have
+            // been dropped.  It is therefore safe to unpin the Soul.
             unsafe { Self::unpin(this) }
         } else {
             panic!("sever failed possibly due to unwinding")
@@ -121,9 +132,12 @@ impl<T: ?Sized> Soul<T> {
     }
 
     /// Returns the unpinned [`Soul`] if all bindings to it are severed.
+    #[must_use = "if Err, the Soul has not been severed"]
     pub fn try_sever<S: Deref<Target = Self>>(this: Pin<S>) -> Result<S, Pin<S>> {
         if sever::<false>(&this.count) {
-            // Safety: all bindings have been severed, guaranteed by `B::sever`.
+            // Safety: `sever::<false>` returned `true`, which means the CAS
+            // succeeded (count was 0) and no Liches are bound.  It is therefore
+            // safe to unpin the Soul.
             Ok(unsafe { Self::unpin(this) })
         } else {
             Err(this)
@@ -132,8 +146,10 @@ impl<T: ?Sized> Soul<T> {
 
     /// # Safety
     ///
-    /// It **must** be the case the all bindings to [`Lich`]es have been severed
-    /// before calling this function.
+    /// The caller must ensure that `sever` (the standalone free function in this
+    /// module) has returned `true` for this Soul's `count` field before calling
+    /// this function.  That is, all bound [`Lich`]es must have been dropped and
+    /// the `count` must have been atomically set to `u32::MAX`.
     unsafe fn unpin<S: Deref<Target = Self>>(this: Pin<S>) -> S {
         debug_assert_eq!(this.bindings(), 0);
         // Safety: no `Lich`es are bound, the `Soul` can be unpinned.
@@ -183,8 +199,11 @@ impl<T: ?Sized> Drop for Soul<T> {
 
 fn sever<const FORCE: bool>(count: &AtomicU32) -> bool {
     loop {
-        match count.compare_exchange(0, u32::MAX, Ordering::Acquire, Ordering::Relaxed) {
-            Ok(0 | u32::MAX) | Err(u32::MAX) => break true,
+        match count.compare_exchange(0, SEVERED, Ordering::Acquire, Ordering::Relaxed) {
+            // `compare_exchange(0, …)` returns `Ok(old_value)` only when `old_value == 0`,
+            // so only `Ok(0)` can appear here. `Err(SEVERED)` means a concurrent `sever`
+            // already completed; either way, the Soul is severed.
+            Ok(0) | Err(SEVERED) => break true,
             Ok(value) | Err(value) if FORCE => sync::wait(count, value),
             Ok(_) | Err(_) => break false,
         }
