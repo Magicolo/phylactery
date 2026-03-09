@@ -34,12 +34,7 @@ mod implement {
                 impl<$($generic: ?Sized,)* $($name,)*> $crate::shroud::Shroud<dyn $trait<$($generic,)* $($name,)*> $(+ $traits)*> for dyn $trait<$($generic,)* $($name,)*> $(+ $traits)* where $($name: $bound,)* {
                     #[inline(always)]
                     fn shroud(from: ::core::ptr::NonNull<dyn $trait<$($generic,)* $($name,)*> $(+ $traits)*>) -> ::core::ptr::NonNull<Self> {
-                        unsafe {
-                            ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
-                                *mut (dyn $trait<$($generic,)* $($name,)*> $(+ $traits)*),
-                                *mut Self
-                            >(from.as_ptr() as _))
-                        }
+                        from
                     }
                 }
             };
@@ -53,12 +48,7 @@ mod implement {
                 impl<$($generic: ?Sized,)* $($name,)* TConcrete: $trait<$($generic,)* $($name,)*> $(+ $traits)*> $crate::shroud::Shroud<TConcrete> for dyn $trait<$($generic,)* $($name,)* $($associate = TConcrete::$associate,)*> $(+ $traits)* where $($name: $bound,)* {
                     #[inline(always)]
                     fn shroud(from: ::core::ptr::NonNull<TConcrete>) -> ::core::ptr::NonNull<Self> {
-                        unsafe {
-                            ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
-                                *mut (dyn $trait<$($generic,)* $($name,)* $($associate = TConcrete::$associate,)*> $(+ $traits)*),
-                                *mut Self
-                            >(from.as_ptr() as _))
-                        }
+                        unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as _) }
                     }
                 }
             };
@@ -96,12 +86,7 @@ mod implement {
             impl<$($parameter,)* $return> $crate::shroud::Shroud<dyn $function($($parameter),*) -> $return $(+ $trait)*> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
                 #[inline(always)]
                 fn shroud(from: ::core::ptr::NonNull<dyn $function($($parameter),*) -> $return $(+ $trait)*>) -> ::core::ptr::NonNull<Self> {
-                    unsafe {
-                        ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
-                            *mut (dyn $function($($parameter),*) -> $return $(+ $trait)*),
-                            *mut Self
-                        >(from.as_ptr() as _))
-                    }
+                    from
                 }
             }
 
@@ -110,12 +95,7 @@ mod implement {
             impl<$($parameter,)* $return, TConcrete: $function($($parameter),*) -> $return $(+ $trait)*> $crate::shroud::Shroud<TConcrete> for dyn $function($($parameter),*) -> $return $(+ $trait)* {
                 #[inline(always)]
                 fn shroud(from: ::core::ptr::NonNull<TConcrete>) -> ::core::ptr::NonNull<Self> {
-                    unsafe {
-                        ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
-                            *mut (dyn $function($($parameter),*) -> $return $(+ $trait)*),
-                            *mut Self
-                        >(from.as_ptr() as _))
-                    }
+                    unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as _) }
                 }
             }
         };
