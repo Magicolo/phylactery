@@ -138,6 +138,38 @@ impl<T: fmt::Display + ?Sized> fmt::Display for Lich<T> {
     }
 }
 
+impl<T: ?Sized> fmt::Pointer for Lich<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Pointer::fmt(&self.value.as_ptr(), f)
+    }
+}
+
+impl<T: PartialEq + ?Sized> PartialEq for Lich<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.data_ref() == other.data_ref()
+    }
+}
+
+impl<T: Eq + ?Sized> Eq for Lich<T> {}
+
+impl<T: PartialOrd + ?Sized> PartialOrd for Lich<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        PartialOrd::partial_cmp(self.data_ref(), other.data_ref())
+    }
+}
+
+impl<T: Ord + ?Sized> Ord for Lich<T> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        Ord::cmp(self.data_ref(), other.data_ref())
+    }
+}
+
+impl<T: core::hash::Hash + ?Sized> core::hash::Hash for Lich<T> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.data_ref().hash(state);
+    }
+}
+
 impl<T: ?Sized> Drop for Lich<T> {
     fn drop(&mut self) {
         // Safety: this `Lich` is no longer externally reachable since it is being
@@ -168,5 +200,67 @@ pub(crate) fn decrement(count: &AtomicU32) -> u32 {
     match count.fetch_sub(1, Ordering::Relaxed) {
         0 | SEVERED => unreachable!(),
         value => value - 1,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::hash::{Hash, Hasher};
+    use core::mem::ManuallyDrop;
+
+    /// Helper: create a `Lich<T>` that points directly at `value` with the
+    /// given shared atomic count. Returned Lich is wrapped in `ManuallyDrop`
+    /// to avoid touching the count on drop (since the count is stack-local).
+    fn test_lich<T>(value: &T, count: &AtomicU32) -> ManuallyDrop<Lich<T>> {
+        count.fetch_add(1, Ordering::Relaxed);
+        ManuallyDrop::new(Lich {
+            value: NonNull::from(value),
+            count: NonNull::from(count),
+        })
+    }
+
+    #[test]
+    fn partial_eq_equal_values() {
+        let count = AtomicU32::new(0);
+        let a = test_lich(&42_i32, &count);
+        let b = test_lich(&42_i32, &count);
+        assert_eq!(*a, *b);
+    }
+
+    #[test]
+    fn partial_eq_different_values() {
+        let count = AtomicU32::new(0);
+        let a = test_lich(&42_i32, &count);
+        let b = test_lich(&99_i32, &count);
+        assert_ne!(*a, *b);
+    }
+
+    #[test]
+    fn ord_and_partial_ord() {
+        let count = AtomicU32::new(0);
+        let a: ManuallyDrop<Lich<i32>> = test_lich(&1_i32, &count);
+        let b: ManuallyDrop<Lich<i32>> = test_lich(&2_i32, &count);
+        assert!(*a < *b);
+        assert!(*b > *a);
+        assert_eq!(a.cmp(&a), core::cmp::Ordering::Equal);
+        assert_eq!(a.cmp(&b), core::cmp::Ordering::Less);
+    }
+
+    #[test]
+    fn hash_equal_values() {
+        let count = AtomicU32::new(0);
+        let a = test_lich(&42_i32, &count);
+        let b = test_lich(&42_i32, &count);
+
+        let state = std::collections::hash_map::RandomState::new();
+        let compute_hash = |lich: &Lich<i32>| {
+            use core::hash::BuildHasher;
+            let mut hasher = state.build_hasher();
+            lich.hash(&mut hasher);
+            hasher.finish()
+        };
+
+        assert_eq!(compute_hash(&a), compute_hash(&b));
     }
 }
