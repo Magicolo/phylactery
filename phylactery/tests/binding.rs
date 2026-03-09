@@ -1,4 +1,4 @@
-#![cfg(feature = "shroud")]
+#![cfg(all(feature = "shroud", feature = "std"))]
 
 use core::{cell::RefCell, fmt, pin::pin, time::Duration};
 use phylactery::{Lich, Soul};
@@ -190,8 +190,14 @@ fn lich_debug_shows_value_and_bindings() {
     let soul = Box::pin(Soul::new(42_i32));
     let lich = soul.as_ref().bind::<dyn fmt::Debug>();
     let debug = format!("{lich:?}");
-    assert!(debug.contains("Lich"), "Debug output should contain 'Lich': {debug}");
-    assert!(debug.contains("42"), "Debug output should contain the value '42': {debug}");
+    assert!(
+        debug.contains("Lich"),
+        "Debug output should contain 'Lich': {debug}"
+    );
+    assert!(
+        debug.contains("42"),
+        "Debug output should contain the value '42': {debug}"
+    );
     assert!(
         debug.contains("bindings"),
         "Debug output should contain 'bindings': {debug}"
@@ -206,7 +212,8 @@ fn lich_display_forwards_to_inner() {
     assert_eq!(display, "42");
 }
 
-/// Regression test for Issue 01: `Soul::redeem` must wake a parked `sever` thread.
+/// Regression test for Issue 01: `Soul::redeem` must wake a parked `sever`
+/// thread.
 ///
 /// Before the fix, `Soul::redeem` decremented the counter without waking any
 /// parked `sever` threads, so a thread blocked inside `Soul::sever` would
@@ -243,9 +250,9 @@ fn redeem_wakes_sever_thread() {
     handle.join().unwrap();
 }
 
-/// Regression test: `wake_all` must unblock *all* threads parked in `Soul::sever`,
-/// not just one. If `wake_one` were used instead, only one of the sever threads
-/// would be released and the others would park indefinitely.
+/// Regression test: `wake_all` must unblock *all* threads parked in
+/// `Soul::sever`, not just one. If `wake_one` were used instead, only one of
+/// the sever threads would be released and the others would park indefinitely.
 #[test]
 fn redeem_wakes_all_sever_threads() {
     use std::sync::mpsc;
