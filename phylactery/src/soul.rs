@@ -194,7 +194,10 @@ fn sever<const FORCE: bool>(count: &AtomicU32) -> bool {
             // so only `Ok(0)` can appear here. `Err(SEVERED)` means a concurrent `sever`
             // already completed; either way, the Soul is severed.
             Ok(0) | Err(SEVERED) => break true,
-            Ok(value) | Err(value) if FORCE => atomic_wait::wait(count, value),
+            Ok(value) | Err(value) if FORCE => {
+                debug_assert_ne!(value, SEVERED, "sentinel in live-count range");
+                atomic_wait::wait(count, value);
+            }
             Ok(_) | Err(_) => break false,
         }
     }
