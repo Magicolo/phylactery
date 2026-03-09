@@ -343,13 +343,20 @@ fn can_sever_rc_pinned_soul() {
 
 #[test]
 fn sever_blocks_until_thread_lich_drops() {
+    let lich_dropped = Arc::new(AtomicBool::new(false));
+    let lich_dropped_clone = lich_dropped.clone();
     let soul = Box::pin(Soul::new(|| {}));
     let lich = soul.as_ref().bind::<dyn Fn() + Sync>();
     spawn(move || {
         sleep(Duration::from_millis(20));
+        lich_dropped_clone.store(true, Ordering::Release);
         drop(lich);
     });
     Soul::sever(soul); // must block until the thread drops lich
+    assert!(
+        lich_dropped.load(Ordering::Acquire),
+        "sever must have waited for the lich to be dropped"
+    );
 }
 
 #[test]
