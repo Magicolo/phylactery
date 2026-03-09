@@ -253,10 +253,8 @@ mod tests {
         let a = test_lich(&42_i32, &count);
         let b = test_lich(&42_i32, &count);
 
-        let state = std::collections::hash_map::RandomState::new();
         let compute_hash = |lich: &Lich<i32>| {
-            use core::hash::BuildHasher;
-            let mut hasher = state.build_hasher();
+            let mut hasher = std::hash::DefaultHasher::new();
             lich.hash(&mut hasher);
             hasher.finish()
         };
