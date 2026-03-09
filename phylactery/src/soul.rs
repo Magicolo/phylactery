@@ -118,16 +118,26 @@ impl<T: ?Sized> Soul<T> {
     }
 
     /// Ensures that all bindings to this [`Soul`] are severed, blocking the
-    /// current thread if any bound [`Lich`] remain and returning the unpinned
-    /// [`Soul`] on completion.
+    /// current thread until all bound [`Lich`]es are dropped, then returns
+    /// the unpinned `S`.
+    ///
+    /// # Panics
+    ///
+    /// This method does not panic.  If blocking until all Liches are dropped
+    /// is not acceptable, use [`Soul::try_sever`] instead.
+    ///
+    /// # Deadlock
+    ///
+    /// If the calling thread holds the last [`Lich`] that keeps the count
+    /// non-zero, calling this method will deadlock.
     pub fn sever<S: Deref<Target = Self>>(this: Pin<S>) -> S {
         if sever::<true>(&this.count) {
-            // Safety: `sever::<true>` returned `true`, which guarantees the atomic
-            // count has been set to `u32::MAX` and all previously live Liches have
-            // been dropped.  It is therefore safe to unpin the Soul.
+            // Safety: `sever::<true>` returned `true`, meaning all Liches have
+            // been dropped and the count has been atomically set to u32::MAX.
             unsafe { Self::unpin(this) }
         } else {
-            panic!("sever failed possibly due to unwinding")
+            // `sever::<true>` loops until count == 0 and never returns false.
+            unreachable!()
         }
     }
 
