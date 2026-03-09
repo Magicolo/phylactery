@@ -34,7 +34,7 @@ pub mod thread_spawn_bridge {
 }
 
 fn main() {
-    #[cfg(feature = "shroud")]
+    #[cfg(all(feature = "shroud", feature = "std"))]
     thread_spawn_bridge::broadcast(
         std::thread::available_parallelism().unwrap_or(core::num::NonZeroUsize::MIN),
         &|index| println!("{index}"),

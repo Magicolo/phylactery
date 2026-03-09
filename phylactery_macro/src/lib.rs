@@ -66,8 +66,14 @@ pub fn shroud(
                     #[automatically_derived]
                     impl<'__life_in__, '__life_out__: '__life_in__, #(#parameters,)*> ::phylactery::Shroud<dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__> for dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_out__ #where_clause {
                         #[inline(always)]
+                        #[allow(clippy::transmute_ptr_to_ptr)]
                         fn shroud(from: ::core::ptr::NonNull<dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__>) -> ::core::ptr::NonNull<Self> {
-                            unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as _) }
+                            unsafe {
+                                ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<
+                                    *mut (dyn #ident<#(#parameter_names,)* #(#assigns,)*> #(+ #paths)* + '__life_in__),
+                                    *mut Self,
+                                >(from.as_ptr()))
+                            }
                         }
                     }
                 )
@@ -76,8 +82,13 @@ pub fn shroud(
                     #[automatically_derived]
                     impl<'__life__, #(#parameters,)* __TConcrete__: #ident<#(#parameter_names,)*> #(+ #paths)*> ::phylactery::Shroud<__TConcrete__> for dyn #ident<#(#parameter_names,)* #(#associates = __TConcrete__::#associates,)*> #(+ #paths)* + '__life__ #where_clause {
                         #[inline(always)]
+                        #[allow(clippy::transmute_ptr_to_ptr)]
                         fn shroud(from: ::core::ptr::NonNull<__TConcrete__>) -> ::core::ptr::NonNull<Self> {
-                            unsafe { ::core::ptr::NonNull::new_unchecked(from.as_ptr() as _) }
+                            unsafe {
+                                let reference = from.as_ref();
+                                let dyn_ref: &(dyn #ident<#(#parameter_names,)* #(#associates = __TConcrete__::#associates,)*> #(+ #paths)*) = reference;
+                                ::core::ptr::NonNull::new_unchecked(::core::mem::transmute::<*const _, *mut Self>(dyn_ref as *const _))
+                            }
                         }
                     }
                 )
