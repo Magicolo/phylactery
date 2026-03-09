@@ -50,7 +50,7 @@ pub(crate) const SEVERED: u32 = u32::MAX;
 /// implementation will block the current thread until all [`Lich`]es are
 /// dropped. This behavior guarantees that no [`Lich`] can ever outlive the data
 /// it points to.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Soul<T: ?Sized> {
     _marker: PhantomPinned,
     count: AtomicU32,
@@ -183,6 +183,12 @@ impl<T: ?Sized> Soul<T> {
         // `Soul` is pinned, the pointer remains valid as long as the Soul lives,
         // which is guaranteed by `<Soul as Drop>::drop`.
         unsafe { NonNull::new_unchecked(addr_of!(self.count) as _) }
+    }
+}
+
+impl<T> From<T> for Soul<T> {
+    fn from(value: T) -> Self {
+        Self::new(value)
     }
 }
 

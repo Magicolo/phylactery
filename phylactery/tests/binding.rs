@@ -4,7 +4,10 @@ use core::{cell::RefCell, fmt, pin::pin, time::Duration};
 use phylactery::{Lich, Soul};
 use std::{
     rc::Rc,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     thread::{sleep, spawn},
 };
 
@@ -305,4 +308,52 @@ fn redeem_wakes_all_sever_threads() {
     for handle in handles {
         handle.join().unwrap();
     }
+}
+
+#[test]
+fn can_sever_arc_pinned_soul() {
+    let soul = Arc::pin(Soul::new(|| 'a'));
+    let lich = soul.as_ref().bind::<dyn Fn() -> char>();
+    drop(lich);
+    let soul = Soul::sever(soul);
+    assert_eq!((*soul)(), 'a');
+}
+
+#[test]
+fn can_sever_rc_pinned_soul() {
+    let soul = Rc::pin(Soul::new(|| 'a'));
+    let lich = soul.as_ref().bind::<dyn Fn() -> char>();
+    drop(lich);
+    let soul = Soul::sever(soul);
+    assert_eq!((*soul)(), 'a');
+}
+
+#[test]
+fn sever_blocks_until_thread_lich_drops() {
+    let lich_dropped = Arc::new(AtomicBool::new(false));
+    let lich_dropped_clone = lich_dropped.clone();
+    let soul = Box::pin(Soul::new(|| {}));
+    let lich = soul.as_ref().bind::<dyn Fn() + Sync>();
+    spawn(move || {
+        sleep(Duration::from_millis(20));
+        lich_dropped_clone.store(true, Ordering::Release);
+        drop(lich);
+    });
+    Soul::sever(soul); // must block until the thread drops lich
+    assert!(
+        lich_dropped.load(Ordering::Acquire),
+        "sever must have waited for the lich to be dropped"
+    );
+}
+
+#[test]
+fn bindings_after_sever_returns_zero() {
+    let soul = Box::pin(Soul::new(|| {}));
+    let lich = soul.as_ref().bind::<dyn Fn()>();
+    assert_eq!(lich.bindings(), 1);
+    drop(lich);
+    // Now count is 0, then sever sets it to u32::MAX
+    let soul = Soul::sever(soul);
+    // After sever, bindings() maps the SEVERED sentinel (u32::MAX) to 0.
+    assert_eq!(soul.bindings(), 0);
 }
