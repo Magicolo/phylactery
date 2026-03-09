@@ -9,7 +9,7 @@ use core::{
     mem::ManuallyDrop,
     ops::Deref,
     pin::Pin,
-    ptr::{self, addr_of, NonNull, read},
+    ptr::{self, NonNull, addr_of, read},
 };
 
 /// Sentinel value written to `Soul::count` by `sever` to indicate that the
@@ -146,10 +146,11 @@ impl<T: ?Sized> Soul<T> {
 
     /// # Safety
     ///
-    /// The caller must ensure that `sever` (the standalone free function in this
-    /// module) has returned `true` for this Soul's `count` field before calling
-    /// this function.  That is, all bound [`Lich`]es must have been dropped and
-    /// the `count` must have been atomically set to `u32::MAX`.
+    /// The caller must ensure that `sever` (the standalone free function in
+    /// this module) has returned `true` for this Soul's `count` field
+    /// before calling this function.  That is, all bound [`Lich`]es must
+    /// have been dropped and the `count` must have been atomically set to
+    /// `u32::MAX`.
     unsafe fn unpin<S: Deref<Target = Self>>(this: Pin<S>) -> S {
         debug_assert_eq!(this.bindings(), 0);
         // Safety: no `Lich`es are bound, the `Soul` can be unpinned.
@@ -162,7 +163,7 @@ impl<T: ?Sized> Soul<T> {
         // required for a pointer that will outlive the current borrow.  Because
         // `Soul` is pinned, the pointer remains valid as long as the Soul lives,
         // which is guaranteed by `<Soul as Drop>::drop`.
-        unsafe { NonNull::new_unchecked(addr_of!((*self.get_ref()).value) as *mut T) }
+        unsafe { NonNull::new_unchecked(addr_of!(self.value) as _) }
     }
 
     fn count_ptr(self: Pin<&Self>) -> NonNull<AtomicU32> {
@@ -171,7 +172,7 @@ impl<T: ?Sized> Soul<T> {
         // required for a pointer that will outlive the current borrow.  Because
         // `Soul` is pinned, the pointer remains valid as long as the Soul lives,
         // which is guaranteed by `<Soul as Drop>::drop`.
-        unsafe { NonNull::new_unchecked(addr_of!((*self.get_ref()).count) as *mut AtomicU32) }
+        unsafe { NonNull::new_unchecked(addr_of!(self.count) as _) }
     }
 }
 
