@@ -25,5 +25,5 @@ jobs:
                     - cargo msrv verify --all-features --path phylactery_macro
                     - cargo audit --deny warnings
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
             - run: ${{ matrix.command }}
